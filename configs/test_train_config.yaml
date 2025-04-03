@@ -1,0 +1,24 @@
+# Default configuration for LMVF training
+
+# Model settings
+model: "gemma-3-4b-it"  # Main model for generation
+verifier_model: null    # Optional separate model for verification (uses main model if null)
+
+# Dataset settings
+dataset: "math"
+
+# Generation settings
+num_generations: 4
+
+# Training settings
+num_train_iterations: 1
+batch_size: 8
+steps_per_iteration: 500
+verbose: false
+
+# Output settings
+output_dir: null  # Will be auto-generated if not provided
+output_base_path: "/n/netscratch/hankyang_lab/Lab/alex/LMVF"
+
+# Other settings
+seed: 42

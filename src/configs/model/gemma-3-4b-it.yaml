@@ -1,0 +1,9 @@
+model:
+  name: gemma-3-4b-it
+  type: gemma-3
+  path: google/gemma-3-4b-it
+  tensor_parallel_size: 1 # TODO: test
+  dtype: bfloat16
+  temperature: 1.0
+  max_new_tokens: 2048
+
