@@ -13,13 +13,29 @@ if [ -z "$2" ]; then
     exit 1
 fi
 TENSOR_PARALLEL_SIZE=$2
+
+# Check if this is a verifier model task
+IS_VERIFIER_MODEL=false
+VERIFIER_TASK_OFFSET=0 # Default offset is 0 for generator tasks
+if [ "$3" == "verifier" ]; then
+    IS_VERIFIER_MODEL=true
+    VERIFIER_TASK_OFFSET=20 # Fixed offset of 20 for verifier tasks
+    echo "[Task $SLURM_PROCID] Running verifier model server task."
+fi
 # --- End Arguments ---
-TASK_ID=$SLURM_PROCID
-echo "[Task $SLURM_PROCID] Running on $(hostname) | CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES | PWD=$(pwd)"
+TASK_ID=$((SLURM_PROCID + VERIFIER_TASK_OFFSET))
+echo "[Task $TASK_ID] Running on $(hostname) | CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES | PWD=$(pwd)"
 
 
 # Set shared directory
-SHAREDIR=temp/gemma_test
+SHAREDIR=temp/lmvf_shared
+
+# Determine the correct host file based on whether this is a verifier model task
+if [ "$IS_VERIFIER_MODEL" == true ]; then
+    HOST_FILE_COMMON=$SHAREDIR/verifier_server_hosts.txt
+else
+    HOST_FILE_COMMON=$SHAREDIR/server_hosts.txt
+fi
 
 # Task-specific identifiers - SLURM_PROCID is unique across all tasks (0 to TOTAL_SERVERS - 1)
 if [ -z "$TASK_ID" ]; then
@@ -30,7 +46,6 @@ fi
 PORT=$((8000 + TASK_ID))
 
 READY_FILE=$SHAREDIR/server_ready_$TASK_ID.txt
-HOST_FILE=$SHAREDIR/server_host_$TASK_ID.txt
 
 echo "[Task $TASK_ID] Starting on $(hostname). Will use port $PORT. TP Size: $TENSOR_PARALLEL_SIZE."
 
@@ -51,6 +66,9 @@ module load cuda/12.4.1-fasrc01
 
 # --- Read Model Identifier from Main Config ---
 MODEL_IDENTIFIER=$(yq -r '.model' "$CONFIG_FILE")
+if [ "$IS_VERIFIER_MODEL" == true ]; then
+    MODEL_IDENTIFIER=$(yq -r '.verifier_model' "$CONFIG_FILE")
+fi
 if [ -z "$MODEL_IDENTIFIER" ]; then
     echo "[Task $TASK_ID] Error: Could not read 'model' identifier from $CONFIG_FILE"
     exit 1
@@ -76,10 +94,11 @@ fi
 echo "[Task $TASK_ID] Using model path: $MODEL_PATH"
 # --- End Read Model Path ---
 
-# Save host info (hostname is sufficient as Slurm places tasks)
+# Save host info (hostname:port) by appending to the appropriate host file
 HOSTNAME=$(hostname)
-echo "${HOSTNAME}:${PORT}" > "$HOST_FILE"
-echo "[Task $TASK_ID] Host information saved to $HOST_FILE: ${HOSTNAME}:${PORT}"
+HOST_PORT_INFO="${HOSTNAME}:${PORT}"
+echo "$HOST_PORT_INFO" >> "$HOST_FILE_COMMON" # Append to the correct host file
+echo "[Task $TASK_ID] Host information appended to $HOST_FILE_COMMON: $HOST_PORT_INFO"
 
 # Start vLLM server on separate port per task using model path and TP size
 # Slurm's --gpus-per-task handles CUDA_VISIBLE_DEVICES
@@ -103,7 +122,7 @@ if ! ps -p $VLLM_PID > /dev/null; then
    exit 1
 fi
 
-# Signal that this server is ready
+# Signal that this server is ready by creating its specific ready file
 touch "$READY_FILE"
 echo "[Task $TASK_ID] Server is ready on port $PORT with model $MODEL_PATH (TP=$TENSOR_PARALLEL_SIZE)"
 

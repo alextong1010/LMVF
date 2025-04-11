@@ -1,15 +1,18 @@
 #!/bin/bash
 #SBATCH --job-name=gemma-client
-#SBATCH --output=slurm-client-%j-%t.out # Added task ID to output filename
+#SBATCH --output=logs/slurm-client-%j.out # Single client, no task ID needed in filename
 #SBATCH --account=hankyang_lab
 #SBATCH --nodes=1
 #SBATCH --partition=seas_compute
-#SBATCH --cpus-per-task=2
 #SBATCH -t 00-00:30
-#SBATCH --mem=8GB
 #
 # Slurm directives controlled by submit_jobs.sh:
-# --ntasks=M (where M = total number of servers)
+# --ntasks=1
+# --cpus-per-task=C (where C = total number of servers)
+# --mem=M (where M = total number of servers * 4G, min 4G)
+# --dependency=after:GPU_JOBID
 
-srun --ntasks=$SLURM_NTASKS bash scripts/slurm/run_client_task.sh "$@"
+# Use srun with --ntasks=1 since the job itself requests 1 task.
+# Pass all arguments received by this script ($@) to the next script.
+srun --ntasks=1 --cpus-per-task=$SLURM_CPUS_PER_TASK bash scripts/slurm/run_client_task.sh "$@"
 
