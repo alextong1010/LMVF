@@ -11,7 +11,8 @@ We recommend using a conda environment with Python 3.10.
 1. conda create -n lmvf python=3.10 
 2. pip install trl
 3. pip install trl[vllm]
-4. 
+4. conda install -c conda-forge yg
+5. conda install -c conda-forge jq
 
 
 Common Errors
