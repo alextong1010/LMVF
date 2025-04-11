@@ -4,3 +4,6 @@
 *_cache/*
 *__pycache__/*
 .idea/*
+*.out
+*.err
+*.log

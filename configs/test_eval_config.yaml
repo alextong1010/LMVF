@@ -1,8 +1,15 @@
 # Default configuration for LMVF evaluation
 
 # Model settings
-model: "gemma-3-4b-it"  # Main model for generation
-verifier_model: null    # Optional separate model for verification (uses main model if null)
+model: "gemma-3-1b-it"  # Main model for generation
+verifier_model: "gemma-3-4b-it"     # Optional separate model for verification (uses main model if null)
+
+# Other settings
+seed: 42
+gpus_per_node: 2
+num_nodes: 1
+verifier_model_gpus_per_node: 1  # Number of GPUs per node for verifier model
+verifier_model_num_nodes: 1      # Number of nodes for verifier model
 
 # Dataset settings
 dataset: "math"
@@ -22,5 +29,3 @@ verbose: false
 output_dir: null  # Will be auto-generated if not provided
 output_base_path: "/n/netscratch/hankyang_lab/Lab/alex/LMVF"
 
-# Other settings
-seed: 42

@@ -1,0 +1,11 @@
+datasets:
+  math:
+    train: "/n/netscratch/hankyang_lab/Lab/alex/MATH/train/**/*.json"
+    test: "/n/netscratch/hankyang_lab/Lab/alex/MATH/test/**/*.json"
+    math_500: true # Whether to use the 500-question subset of the MATH dataset as shown in https://github.com/openai/prm800k/tree/main
+    verifiers:
+      - "units_steps"
+      - "general_summarize"
+      - "general_edge"
+      - "general_mistakes"
+      - "general_domain" 
