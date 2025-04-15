@@ -1,0 +1,29 @@
+# Default configuration for LMVF evaluation
+
+# Model settings
+# model: "deepseek-r1-distill-qwen-1.5b"  # Main model for generation
+model: "gemma-3-1b-it"
+verifier_model: "gemma-3-4b-it"     # Optional separate model for verification (uses main model if null)
+
+# Other settings
+seed: 42
+gpus_per_node: 1
+num_nodes: 2
+
+# Dataset settings
+dataset: "math"
+
+# Generation settings
+num_generations: 8
+batch_size: 64
+verifier_batch_size: 16
+
+# Evaluation settings
+eval_mode: 
+    - "pass@1"
+    - "pass@8"
+    - "bon-mav"
+verbose: false
+
+# Output settings
+output_base_path: "/n/netscratch/hankyang_lab/Lab/alex/LMVF"

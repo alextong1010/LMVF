@@ -1,0 +1,8 @@
+model:
+  name: gemma-3-1b-it
+  type: gemma-3
+  path: google/gemma-3-1b-it
+  tensor_parallel_size: 1
+  dtype: bfloat16
+  reasoning: false
+  max_new_tokens: 2048
