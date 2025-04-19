@@ -2,32 +2,47 @@ from prompts.vera_prompts import get_vera_prompt, VERA_ASK_FOR_APPROVAL_ONLY_PRO
 from termcolor import colored
 from utils.loading_utils import load_domain_specific_verifiers
 from vllm import LLM
-def generate_verifier_approvals(
+from typing import List, Dict, Any
+
+def generate_initial_verifier_responses(
     config: dict,
-    batch_data: list,
+    verifier_model_config: dict,
+    batch_data: List[Dict[str, Any]],
     verifier_llm: LLM,
-    verifier_sampling_params: dict,
-    strict_verifier_sampling_params: dict
-) -> list:
+    verifier_sampling_params: dict
+) -> List[Dict[str, Any]]:
     """
-    Generate the verifier approvals for a batch of answers and update the batch data.
+    Generate the initial verifier responses for a batch of answers.
 
     Args:
-        config: Configuration dictionary
-        batch_data: A list of data dictionaries with generated solutions
-        verifier_llm: The model to use for generation
-        verifier_sampling_params: The sampling parameters for the verifier model
-        strict_verifier_sampling_params: The sampling parameters for the strict verifier model
+        config: Configuration dictionary.
+        verifier_model_config: Configuration for the verifier model.
+        batch_data: A list of data dictionaries with generated solutions.
+        verifier_llm: The model to use for initial verification.
+        verifier_sampling_params: The sampling parameters for the verifier model.
+
     Returns:
-        list: Updated batch data with verifier approvals
+        list: Updated batch data with 'verifier_responses'.
     """
     user_prompts = []
     veras = load_domain_specific_verifiers(config['dataset'])
     num_veras = len(veras)
-    direct_veras_idx = [i for i, v in enumerate(veras) if "direct" in v]
+
+    # Check if generated_solutions exist in the data
+    if not batch_data or 'generated_solutions' not in batch_data[0]:
+         print(colored("Warning: 'generated_solutions' key not found in batch_data[0]. Cannot generate verifier prompts.", "yellow"))
+         # Add empty responses and return early or handle as error
+         for data in batch_data:
+             data['verifier_responses'] = [[] for _ in range(config['num_generations'])]
+         return batch_data
+
 
     for data in batch_data:
-        generated_solutions = data["generated_solutions"]
+        # Use 'generated_solutions' if available, fall back to 'generated_answers' maybe?
+        # Stick to 'generated_solutions' for consistency with original code
+        generated_solutions = data.get("generated_solutions", [])
+        if not generated_solutions:
+             raise ValueError(f"No generated solutions found for data item {data}")
 
         for solution in generated_solutions:
             for vera_name in veras:
@@ -43,49 +58,203 @@ def generate_verifier_approvals(
             },
         ] for prompt in user_prompts
     ]
-    print(f"\nGenerating {num_veras} different verifier approvals for each of the {config['num_generations']} generated solutions in the batch...\n")
+    print(f"\nGenerating {num_veras} different verifier responses for each of the {config['num_generations']} generated solutions in the batch...")
     outputs = verifier_llm.chat(inputs, verifier_sampling_params, use_tqdm=False)
-    verifier_responses = [(output.outputs[0].text).split("<end_of_turn>")[0] for output in outputs]
-    # SECOND PASS TO GET STRICT TRUE/FALSE APPROVAL
-    strict_prompts = [
-        [
-            inputs[i][0],
-            {
-                "role": "assistant",
-                "content": [{"type": "text", "text": verifier_responses[i]}]
-            },
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": VERA_ASK_FOR_APPROVAL_ONLY_PROMPT}]
-            }
-        ]
-        for i in range(0, len(verifier_responses)) if i % num_veras not in direct_veras_idx
-    ]
-    print(f"\nGetting strict True/False approvals for verifier responses in the batch...\n")
-    strict_outputs = verifier_llm.chat(strict_prompts, strict_verifier_sampling_params, use_tqdm=False)
-    strict_decoded_outputs = [(output.outputs[0].text).split("<end_of_turn>")[0] for output in strict_outputs]
-    final_outputs = []
-    strict_idx = 0
-    for idx, output in enumerate(verifier_responses):
-        if (idx % num_veras) in direct_veras_idx:
-            final_outputs.append(output)
+
+    verifier_responses = []
+    for output in outputs:
+        response_text = output.outputs[0].text or "" # Handle potential None
+        response_text = response_text.split("<end_of_turn>")[0].split("<|eot_id|>")[0].strip()
+
+        if verifier_model_config and verifier_model_config.get("model", {}).get("reasoning"):
+            try:
+                # Try to split using </think> token
+                response = response_text.split("</think>")[1]
+            except IndexError:
+                # Default to using the whole response if </think> is not found
+                response = response_text
+            verifier_responses.append(response)
         else:
-            final_outputs.append(strict_decoded_outputs[strict_idx])
-            strict_idx += 1
+            verifier_responses.append(response_text)
 
-    assert len(final_outputs) == num_veras * config['num_generations'] * len(batch_data), colored(f"Number of final outputs is not equal to the number of veras * number of generated solutions * batch size. Double check!", "red") 
+    assert len(verifier_responses) == num_veras * config['num_generations'] * len(batch_data), colored(f"Number of verifier responses is not equal to the number of veras * number of generated solutions * batch size. Double check!", "red") 
 
-    # Update each data entry in the batch with verifier approvals
+    # Update each data entry in the batch with verifier responses
     for data_idx, data in enumerate(batch_data):
         start_idx = data_idx * num_veras * config['num_generations']
         end_idx = start_idx + num_veras * config['num_generations']
-        verifier_final_solutions = [final_outputs[j:j + num_veras] for j in range(start_idx, end_idx, num_veras)]
-        verifier_approval_bools = [[extract_verifier_approval(output) for output in sublist] for sublist in verifier_final_solutions]
         data['verifier_responses'] = [verifier_responses[i:i + num_veras] for i in range(start_idx, end_idx, num_veras)]
+
+    return batch_data
+
+def generate_strict_verifier_approvals(
+    config: dict,
+    strict_verifier_model_config: dict,
+    batch_data: List[Dict[str, Any]], # Now expects 'verifier_responses'
+    strict_verifier_llm: LLM,
+    strict_verifier_sampling_params: dict
+) -> List[Dict[str, Any]]:
+    """
+    Generate the strict True/False approvals based on initial verifier responses.
+
+    Args:
+        config: Configuration dictionary.
+        strict_verifier_model_config: Configuration for the strict verifier model.
+        batch_data: A list of data dictionaries with generated solutions and 'verifier_responses'.
+        strict_verifier_llm: The model to use for strict verification.
+        strict_verifier_sampling_params: The sampling parameters for the strict verifier model.
+
+    Returns:
+        list: Updated batch data with 'verifier_final_solutions' and 'verifier_approval_bools'.
+    """
+    strict_prompts = []
+    original_indices = [] # Keep track of which original response corresponds to which strict prompt
+    veras = load_domain_specific_verifiers(config['dataset'])
+    num_veras = len(veras)
+    direct_veras_idx = [i for i, v in enumerate(veras) if "direct" in v]
+
+    # Check if 'verifier_responses' exist
+    if not batch_data or 'verifier_responses' not in batch_data[0]:
+        print(colored("Error: 'verifier_responses' key not found in batch_data[0]. Cannot generate strict prompts.", "red"))
+        for data in batch_data:
+             num_gens = config['num_generations']
+             data['verifier_final_solutions'] = [["# STRICT VERIF ERROR #"] * num_veras] * num_gens
+             data['verifier_approval_bools'] = [[False] * num_veras] * num_gens # Default to False
+        return batch_data
+
+
+    # Global index across all responses in the batch
+    global_response_idx = 0
+    for data_idx, data in enumerate(batch_data):
+        # Assume 'verifier_responses' is a list of lists [num_solutions x num_veras]
+        verifier_responses_lists = data.get('verifier_responses', [])
+        generated_solutions = data.get("generated_solutions", []) # Needed for original user prompt
+
+        for sol_idx, solution_responses in enumerate(verifier_responses_lists):
+            solution = generated_solutions[sol_idx] # Get the corresponding solution
+
+            for vera_idx, response in enumerate(solution_responses):
+                 if vera_idx not in direct_veras_idx:
+                     # Construct the original user prompt for context
+                     vera_name = veras[vera_idx]
+                     original_user_prompt = get_vera_prompt(config['dataset'], vera_name, data['problem'], solution)
+
+                     # Build the multi-turn prompt for strict verification
+                     strict_prompt = [
+                         {
+                             "role": "user",
+                             "content": [{"type": "text", "text": original_user_prompt}]
+                         },
+                         {
+                             "role": "assistant",
+                             "content": [{"type": "text", "text": response}] # Use the initial response
+                         },
+                         {
+                             "role": "user",
+                             "content": [{"type": "text", "text": VERA_ASK_FOR_APPROVAL_ONLY_PROMPT}]
+                         }
+                     ]
+                     strict_prompts.append(strict_prompt)
+                     original_indices.append(global_response_idx) # Track which response this prompt corresponds to
+
+                 global_response_idx += 1 # Increment index for every response processed
+
+
+    if not strict_prompts:
+         print(colored("Warning: No strict prompts generated (maybe all verifiers were direct?). Proceeding to finalize outputs.", "yellow"))
+         strict_decoded_outputs = []
+    else:
+         print(f"\nGetting {len(strict_prompts)} strict True/False approvals for non-direct verifier responses in the batch...\n")
+         strict_outputs = strict_verifier_llm.chat(strict_prompts, strict_verifier_sampling_params, use_tqdm=False) # Use tqdm here
+
+         strict_uses_reasoning = strict_verifier_model_config and strict_verifier_model_config.get("model", {}).get("reasoning")
+
+         strict_decoded_outputs = []
+         for output in strict_outputs:
+             response_text = output.outputs[0].text or "" # Handle potential None
+             response_text = response_text.split("<end_of_turn>")[0].split("<|eot_id|>")[0].strip()
+
+             if strict_uses_reasoning:
+                 try:
+                     response = response_text.split("</think>")[1]
+                 except IndexError:
+                     response = response_text
+                 strict_decoded_outputs.append(response)
+             else:
+                 strict_decoded_outputs.append(response_text)
+
+
+    # Combine initial and strict responses to get final outputs
+    final_outputs_flat = {} # Use a dictionary mapping global index to final output
+    strict_output_idx = 0
+    # Re-iterate through the original structure to place final outputs correctly
+    current_global_idx = 0
+    for data in batch_data:
+        verifier_responses_lists = data.get('verifier_responses', [])
+        for sol_idx, solution_responses in enumerate(verifier_responses_lists):
+             for vera_idx, initial_response in enumerate(solution_responses):
+                 if vera_idx in direct_veras_idx:
+                     final_outputs_flat[current_global_idx] = initial_response
+                 else:
+                     # Find the corresponding strict output using original_indices
+                     try:
+                         original_idx_pos = original_indices.index(current_global_idx)
+                         if original_idx_pos < len(strict_decoded_outputs):
+                              final_outputs_flat[current_global_idx] = strict_decoded_outputs[original_idx_pos]
+                         else:
+                              print(colored(f"Error: Index mismatch finding strict output for global index {current_global_idx}", "red"))
+                              final_outputs_flat[current_global_idx] = "# STRICT OUTPUT ERROR #"
+                     except ValueError:
+                         # This index was not in original_indices, should not happen if logic is correct
+                         print(colored(f"Error: Global index {current_global_idx} not found in original_indices for strict mapping.", "red"))
+                         final_outputs_flat[current_global_idx] = "# STRICT INDEX ERROR #"
+
+                 current_global_idx += 1
+
+
+    # Reshape final_outputs_flat back into the batch structure
+    current_read_idx = 0
+    for data in batch_data:
+        num_solutions = len(data.get("generated_solutions", [])) # Use actual number generated
+        num_expected_outputs = num_solutions * num_veras
+        
+        item_final_outputs_flat = [final_outputs_flat.get(i, "# FINAL OUTPUT ERROR #") for i in range(current_read_idx, current_read_idx + num_expected_outputs)]
+        
+        # Reshape into [num_solutions x num_veras]
+        verifier_final_solutions = [item_final_outputs_flat[j:j + num_veras] for j in range(0, len(item_final_outputs_flat), num_veras)]
+        
+        # Pad if necessary (e.g., if initial solutions were missing)
+        if len(verifier_final_solutions) < config['num_generations']:
+            padding_solution = [["# MISSING FINAL SOLUTION #"] * num_veras] * (config['num_generations'] - len(verifier_final_solutions))
+            verifier_final_solutions.extend(padding_solution)
+        
+        # Ensure correct length before extracting bools
+        padded_final_solutions_for_bools = []
+        for sublist in verifier_final_solutions:
+             if len(sublist) == num_veras:
+                 padded_final_solutions_for_bools.append(sublist)
+             else: # Handle potentially malformed sublists
+                 print(colored(f"Warning: Sublist length mismatch ({len(sublist)} vs {num_veras}) when generating bools. Padding with defaults.", "yellow"))
+                 padded_sublist = list(sublist) + ["# BOOL ERROR #"] * (num_veras - len(sublist))
+                 padded_final_solutions_for_bools.append(padded_sublist[:num_veras])
+
+
+        verifier_approval_bools = [[extract_verifier_approval(output) for output in sublist] for sublist in padded_final_solutions_for_bools]
+
+        # Pad bools list if needed
+        if len(verifier_approval_bools) < config['num_generations']:
+             padding_bools = [[False] * num_veras] * (config['num_generations'] - len(verifier_approval_bools))
+             verifier_approval_bools.extend(padding_bools)
+
+        # Assign the final results to the data dictionary
+        # data['verifier_responses'] = ... # Keep the initial responses already assigned
         data['verifier_final_solutions'] = verifier_final_solutions
         data['verifier_approval_bools'] = verifier_approval_bools
-    return batch_data 
-    
+
+        current_read_idx += num_expected_outputs # Move read index for the next item
+
+    return batch_data
+
 def extract_verifier_approval(verifier_response: str) -> bool:
     """Extract the verifier's approval from the response."""
     # Get the last answer

@@ -8,6 +8,7 @@ from vllm import LLM
 
 def generate_solutions(
     config: dict,
+    model_config: dict,
     data: dict | list[dict], 
     model: LLM,
     sampling_params: dict
@@ -17,9 +18,10 @@ def generate_solutions(
     
     Args:
         config: Configuration dictionary
+        model_config: Model configuration dictionary
         data: A single data dictionary or a list of data dictionaries
         model: The model to use for generation
-
+        sampling_params: Sampling parameters
     Returns:
         If data is a dict: the input dict with a new "solutions" key containing generated solutions
         If data is a list: the input list of dicts, each with a new "solutions" key
@@ -44,7 +46,18 @@ def generate_solutions(
     # Assign solutions during grouping
     for i, d in enumerate(data):
         d['gt_answer'] = extract_answer(d['solution'], config['dataset'])
-        d['generated_solutions'] = [(outputs[i].outputs[j].text).split("<end_of_turn>")[0] for j in range(sampling_params.n)]
+        if model_config.get("model", {}).get("reasoning"):
+            d['generated_solutions'] = []
+            for j in range(sampling_params.n):
+                try:
+                    # Try to split using </think> token
+                    solution = (outputs[i].outputs[j].text).split("</think>")[1].split("<end_of_turn>")[0]
+                except IndexError:
+                    # Default to splitting using <end_of_turn> if </think> is not found
+                    solution = (outputs[i].outputs[j].text).split("<end_of_turn>")[0]
+                d['generated_solutions'].append(solution)
+        else:
+            d['generated_solutions'] = [(outputs[i].outputs[j].text).split("<end_of_turn>")[0] for j in range(sampling_params.n)]
         d['generated_answers'] = [extract_answer(solution, config['dataset']) for solution in d['generated_solutions']]
     return data if is_batch else data[0]
 

@@ -2,13 +2,15 @@
 
 from vllm import LLM, EngineArgs
 from vllm.utils import FlexibleArgumentParser
+VERA_ANSWER_SYMBOL = "FINAL VERIFICATION ANSWER:"
+
 
 
 def main(args: dict):
     # Pop arguments not used by LLM
     max_tokens = args.pop("max_tokens")
-    args["enable_reasoning"] = True
-    args["reasoning_parser"] = "deepseek_r1"
+    # args["enable_reasoning"] = True
+    # args["reasoning_parser"] = "deepseek_r1"
     # Create an LLM
     llm = LLM(**args)
 
@@ -37,16 +39,16 @@ def main(args: dict):
         },
         {
             "role": "user",
-            "content": "Hello"
+            "content": "Hello."
         },
         {
             "role": "assistant",
-            "content": "Hello! How can I assist you today?"
+            "content": "The solution is correct. **Final Answer:** $\\boxed{42}$ **Verification:** 1. The regular hexagon is divided into six equilateral triangles, each with a perimeter of 21 inches. 2. Each triangle's perimeter is 3s = 21, leading to s = 7 inches. 3. The hexagon's perimeter is 6s = 6*7 = 42 inches. 4. The reasoning aligns with the properties of a regular hexagon and equilateral triangles. Thus, the final answer is $\\boxed{42}$, which is correct.",
         },
         {
             "role": "user",
-            "content":
-            "Write an essay about the importance of higher education.",
+            "content": f"To clarify, based on the above analysis, reply with ONLY '{VERA_ANSWER_SYMBOL}True' or ONLY '{VERA_ANSWER_SYMBOL}False'. Do not include any other text in your response."
+            ,
         },
     ]
 

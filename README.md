@@ -21,7 +21,7 @@ Common Errors
 Try: conda install -c nvidia nccl
 
 To Run:
-python run_eval.py --config-path configs/eval_config.yaml
+python run_eval.py --config-path configs/eval_config.yaml (1 GPU)
 
 or 
 
@@ -33,7 +33,7 @@ In general, only instruction-tuned models have a chat template. Base models may 
 ## Work in Progress
 - [Done ] Allow for custom model switching just by switching the config.yaml files
 - [ Done] Test out dynamic gpu allocation given modifiable yaml configs
-- [ ] Add support for tensor_parallel_size > 1, especially with regards to CUDA_VISIBLE_DEVICES
+- [ Done, just test it] Add support for tensor_parallel_size > 1, especially with regards to CUDA_VISIBLE_DEVICES
 - [ ] Run evals 
 - [ ] Subclass GRPO trainer to use Verifiers as Reward funcs
 - [ ] Implement multi-agent training loop

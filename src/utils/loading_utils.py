@@ -73,8 +73,22 @@ def load_and_validate_config(config_args, repo_root):
     else:
         verifier_model_config = None
         verifier_model_path = None
-    
-    return config, model_config, model_path, verifier_model_config, verifier_model_path
+
+    # Add strict verifier model loading
+    strict_verifier_model_name = config.get("strict_verifier_model")
+    if strict_verifier_model_name:
+        strict_verifier_model_config_path = os.path.join(repo_root, "src", "configs", "model", f"{strict_verifier_model_name}.yaml")
+        if not os.path.exists(strict_verifier_model_config_path):
+            raise FileNotFoundError(f"Strict verifier model config file not found: {strict_verifier_model_config_path}")
+        strict_verifier_model_config = load_config(strict_verifier_model_config_path)
+        strict_verifier_model_path = strict_verifier_model_config.get("model", {}).get("path")
+        if not strict_verifier_model_path:
+            raise ValueError(f"Strict verifier model path not found in {strict_verifier_model_config_path}")
+    else:
+        strict_verifier_model_config = None
+        strict_verifier_model_path = None
+
+    return config, model_config, model_path, verifier_model_config, verifier_model_path, strict_verifier_model_config, strict_verifier_model_path
 
 def parse_vllm_args(model_path, remaining_args=None):
     parser = FlexibleArgumentParser()

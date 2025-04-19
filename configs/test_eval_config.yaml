@@ -1,8 +1,9 @@
 # Default configuration for LMVF evaluation
 
 # Model settings
-model: "gemma-3-1b-it"  # Main model for generation
-verifier_model: null     # Optional separate model for verification (uses main model if null)
+model: "gemma-3-1b-it"
+verifier_model: "gemma-3-1b-it"
+strict_verifier_model: "gemma-3-1b-it"
 
 # Other settings
 seed: 42

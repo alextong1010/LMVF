@@ -1,6 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from datasets import load_dataset
 import yaml
-import os
 import json
 from utils.math_utils.math_equivalence import is_equiv
 
@@ -51,7 +54,7 @@ def load_train_dataset(config, task_id, num_tasks):
     train_dataset = train_dataset.shuffle(seed=42)
     # Split the train dataset into num_tasks chunks
     train_dataset = train_dataset.shard(num_shards=num_tasks, index=task_id)
-    return list(train_dataset)
+    return train_dataset
 
 def load_eval_dataset(config, task_id, num_tasks):
     dataset_name = config['dataset']
@@ -81,7 +84,7 @@ def load_eval_dataset(config, task_id, num_tasks):
         raise ValueError(f"Dataset {dataset_name} not implemented.")
     # Split the eval dataset into num_tasks chunks
     eval_dataset = eval_dataset.shard(num_shards=num_tasks, index=task_id)
-    return list(eval_dataset)
+    return eval_dataset
 
 def check_correct_answer(answer, correct_answer, dataset_name):
     if dataset_name == "math":

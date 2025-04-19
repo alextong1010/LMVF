@@ -6,4 +6,4 @@ model:
   dtype: bfloat16
   reasoning: true
   reasoning_parser: deepseek_r1
-  max_new_tokens: 2048
+  max_new_tokens: 4096 # 32768

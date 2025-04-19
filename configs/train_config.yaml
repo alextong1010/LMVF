@@ -1,9 +1,7 @@
-# Default configuration for LMVF evaluation
+# Default configuration for LMVF training
 
 # Model settings
-# model: "deepseek-r1-distill-qwen-1.5b"  # Main model for generation
 model: "gemma-3-1b-it"
-# verifier_model: null    # Optional separate model for verification (uses main model if null)
 verifier_model: "deepseek-r1-distill-qwen-1.5b"
 strict_verifier_model: "gemma-3-4b-it"
 
@@ -11,6 +9,10 @@ strict_verifier_model: "gemma-3-4b-it"
 seed: 42
 gpus_per_node: 1
 num_nodes: 2
+
+train_nodes: 1
+vllm_nodes: 1
+
 
 # Dataset settings
 dataset: "math"
