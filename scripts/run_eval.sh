@@ -82,7 +82,7 @@ SBATCH_CMD="sbatch \
   --nodes=${NUM_NODES} \
   --gres=gpu:nvidia_h100_80gb_hbm3:${GPUS_PER_NODE} \
   --ntasks-per-node=${NTASKS_PER_NODE} \
-  scripts/slurm_eval.sh \"$CONFIG_FILE\""
+  scripts/slurm_eval.sh \"$CONFIG_FILE\" \"$TENSOR_PARALLEL_SIZE\""
 
 echo "Running: $SBATCH_CMD"
 GPU_JOBID=$(eval "$SBATCH_CMD" | awk '{print $4}')

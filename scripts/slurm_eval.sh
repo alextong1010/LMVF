@@ -10,9 +10,14 @@
 
 # === Input Arguments ===
 CONFIG_FILE="$1"
+TENSOR_PARALLEL_SIZE="$2"
 
 if [ -z "$CONFIG_FILE" ]; then
     echo "Error: No config file path provided."
+    exit 1
+fi
+if [ -z "$TENSOR_PARALLEL_SIZE" ]; then
+    echo "Error: No tensor_parallel_size provided."
     exit 1
 fi
 
@@ -22,8 +27,12 @@ conda activate lmvf
 
 export HF_HOME=/n/netscratch/hankyang_lab/Lab/alex/.cache/huggingface
 
-module load cudnn/9.5.1.17_cuda12-fasrc01 
+module load gcc/14.2.0-fasrc01
 module load cuda/12.4.1-fasrc01
+module load cudnn/9.5.1.17_cuda12-fasrc01 
+
+# Export the variable so it's available to the srun sub-shell
+export TENSOR_PARALLEL_SIZE
 
 # Run eval script per task, assigning specific GPUs via CUDA_VISIBLE_DEVICES
 srun bash -c 'echo "Running run_eval.py with SLURM_NTASKS=$SLURM_NTASKS and SLURM_PROCID=$SLURM_PROCID on GPUs $SLURM_LOCALID"; \

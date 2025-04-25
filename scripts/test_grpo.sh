@@ -16,8 +16,10 @@ conda activate lmvf
 
 export HF_HOME=/n/netscratch/hankyang_lab/Lab/alex/.cache/huggingface
 
-module load cudnn/9.5.1.17_cuda12-fasrc01 
+module load gcc/14.2.0-fasrc01
 module load cuda/12.4.1-fasrc01
+module load cudnn/9.5.1.17_cuda12-fasrc01 
+
 
 # Get the list of allocated nodes
 NODELIST=($(scontrol show hostnames $SLURM_JOB_NODELIST))
@@ -39,7 +41,7 @@ srun --nodes=2 --ntasks=2 --nodelist="$TRAIN_NODES_CSV" accelerate launch \
      --main_process_port 29500 \
      --machine_rank $SLURM_PROCID \
      --rdzv_backend c10d \
-     train_grpo.py \
+     test_train.py \
      --vllm_server_host $VLLM_NODE > grpo_logs/train_output.log 2>&1 &
 
 

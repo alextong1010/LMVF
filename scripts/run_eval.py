@@ -22,6 +22,14 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
     print(f"Script started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}, Task {task_id}, Num Tasks {num_tasks}")
     print(f"Using model: {config['model']}, verifier model: {config.get('verifier_model')}, strict verifier model: {config.get('strict_verifier_model')}")
     
+    print("-"*100)
+    print(f"Model config: {model_config}")
+    print("-"*100)
+    print(f"Verifier model config: {verifier_model_config}")
+    print("-"*100)
+    print(f"Strict verifier model config: {strict_verifier_model_config}")
+    print("-"*100)
+
     # Enable reasoning if specified in the model configurations
     if model_config.get("model", {}).get("reasoning"):
         args["enable_reasoning"] = True

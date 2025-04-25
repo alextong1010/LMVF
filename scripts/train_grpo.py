@@ -12,9 +12,12 @@ def main():
     # Example dataset from TLDR
     dataset = load_dataset("trl-lib/tldr", split="train")
 
-    # Dummy reward function: count the number of unique characters in the completions
+    # # Dummy reward function: count the number of unique characters in the completions
     def reward_num_unique_chars(completions, **kwargs):
         return [len(set(c)) for c in completions]
+
+    # def reward_func(completions, **kwargs):
+
 
     training_args = GRPOConfig(
         output_dir="gemma-3-1b-it-GRPO",
