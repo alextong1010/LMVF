@@ -46,6 +46,6 @@ srun --nodes=2 --ntasks=2 --nodelist="$TRAIN_NODES_CSV" accelerate launch \
 
 
 # Run vLLM server on the 3rd node (Group 2)
-srun --nodes=1 --ntasks=1 --nodelist="$VLLM_NODE" trl vllm-serve --model google/gemma-3-1b-it --tensor_parallel_size 1 &
+srun --nodes=1 --ntasks=1 --nodelist="$VLLM_NODE" trl vllm-serve --model Qwen/Qwen2.5-0.5B-Instruct --tensor_parallel_size 1 &
 
 wait

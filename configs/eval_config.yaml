@@ -2,13 +2,13 @@
 
 # Model settings
 # model: "deepseek-r1-distill-qwen-1.5b"  # Main model for generation
-model: "gemma-3-1b-it"
-# verifier_model: "gemma-3-1b-it"
-# strict_verifier_model: "gemma-3-1b-it"
+model: "Qwen2.5-0.5B-Instruct" # "gemma-3-1b-it" #"Qwen2.5-0.5B-Instruct"
+# verifier_model: "Qwen2.5-0.5B-Instruct"
+# strict_verifier_model: "Qwen2.5-0.5B-Instruct"
 
 # verifier_model: null    # Optional separate model for verification (uses main model if null)
-verifier_model: "deepseek-r1-distill-qwen-1.5b"
-strict_verifier_model: "gemma-3-4b-it"
+verifier_model: "deepseek-r1-distill-qwen-1.5b" # "gemma-3-1b-it" # "deepseek-r1-distill-qwen-1.5b"
+strict_verifier_model: "Qwen2.5-3B-Instruct"
 
 # Other settings
 seed: 42

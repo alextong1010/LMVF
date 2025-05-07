@@ -21,6 +21,7 @@ Common Errors
 1. ImportError: libnccl.so.2: cannot open shared object file: No such file or directory
 Try: conda install -c nvidia nccl
 2. Not sure why, but vllm 0.8.3 and vllm 0.8.4 triples the generation time and 10x the verification time of when using vllm 0.8.1
+3. Gemma 3 doesnt work with vllm 0.8.5 post 1, which is what trl[vllm] installs.
 
 
 To Run:
@@ -30,6 +31,19 @@ or
 
 ./slurm_eval.sh (For data parallelism)
 
+To Run (Train):
+python train.py --config-path configs/train_config.yaml
+
+To confirm/do:
+1. Change grpo_config max_prompt_length to None
+2. Change grpo_config max_completion_length to max_new_tokens from model_config
+(Done) 3. Change grpo_config temperature, top_k, top_p, min_p for each model
+4. Modify grpo_config based on the model configs files (temp, top p, top k, min p)
+5. Check verifier_args and strict_verifier_args, what are they? And do any args need to be changed?
+6. Check if models other than qwen2.5 0.5b instruct need to use to_chat_prompt_v3
+7. Debug for slurm, i.e. what is the slurm training script looking like with vllm colocate?
+8. Remove colocate and use servers instead
+
 Note:
 In general, only instruction-tuned models have a chat template. Base models may perform poorly as they are not trained to respond to the chat conversation.
 
@@ -37,9 +51,10 @@ In general, only instruction-tuned models have a chat template. Base models may 
 - [Done ] Allow for custom model switching just by switching the config.yaml files
 - [ Done] Test out dynamic gpu allocation given modifiable yaml configs
 - [ Done, just test it] Add support for tensor_parallel_size > 1, especially with regards to CUDA_VISIBLE_DEVICES
-- [ ] Run evals 
-- [ ] create separate vllm node and just add api calls to the node as the verifier function.
-- [ ] Test num gen = 4, test eager implementation, test calling vllm server
+- [ Done ] Run evals 
+- [ Done ] create separate vllm node and just add api calls to the node as the verifier function.
+- [ Done] Test num gen = 4, test eager implementation, test calling vllm server
+- [ ] CHange the run_eval.py to eval.py after code finishes running
 - [ ] Implement multi-agent training loop
 - [ ] Expand documentation and usage examples
 

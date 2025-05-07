@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-
+import os
 from vllm import LLM, EngineArgs
 from vllm.utils import FlexibleArgumentParser
 VERA_ANSWER_SYMBOL = "FINAL VERIFICATION ANSWER:"
-
-
 
 def main(args: dict):
     # Pop arguments not used by LLM
@@ -12,6 +10,7 @@ def main(args: dict):
     # args["enable_reasoning"] = True
     # args["reasoning_parser"] = "deepseek_r1"
     # Create an LLM
+    breakpoint()
     llm = LLM(**args)
 
     # Create sampling params object
@@ -53,7 +52,22 @@ def main(args: dict):
     ]
 
     # You can run batch inference with llm.chat API
-    conversations = [conversation for _ in range(10)]
+    conversations = [conversation for _ in range(5)]
+
+    conversation_2 = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant"
+        },
+        {
+            "role": "user",
+            "content": "How many vertical asymptotes does the graph of $y=\\frac{2}{x^2+x-6}$ have?"
+        }
+    ]
+
+    conversations_2 = [conversation_2 for _ in range(5)]
+
+    # Solution: "The denominator of the rational function factors into $x^2+x-6=(x-2)(x+3)$. Since the numerator is always nonzero, there is a vertical asymptote whenever the denominator is $0$, which occurs for $x = 2$ and $x = -3$.  Therefore, the graph has $\\boxed{2}$ vertical asymptotes."
 
     # We turn on tqdm progress bar to verify it's indeed running batch inference
     outputs = llm.chat(conversations, sampling_params, use_tqdm=True)

@@ -38,8 +38,6 @@ def generate_initial_verifier_responses(
 
 
     for data in batch_data:
-        # Use 'generated_solutions' if available, fall back to 'generated_answers' maybe?
-        # Stick to 'generated_solutions' for consistency with original code
         generated_solutions = data.get("generated_solutions", [])
         if not generated_solutions:
              raise ValueError(f"No generated solutions found for data item {data}")
@@ -166,7 +164,6 @@ def generate_strict_verifier_approvals(
     else:
          print(f"\nGetting {len(strict_prompts)} strict True/False approvals for non-direct verifier responses in the batch...\n")
          strict_outputs = strict_verifier_llm.chat(strict_prompts, strict_verifier_sampling_params, use_tqdm=False) # Use tqdm here
-
          strict_uses_reasoning = strict_verifier_model_config and strict_verifier_model_config.get("model", {}).get("reasoning")
 
          strict_decoded_outputs = []
@@ -257,11 +254,19 @@ def generate_strict_verifier_approvals(
 
 def extract_verifier_approval(verifier_response: str) -> bool:
     """Extract the verifier's approval from the response."""
-    # Get the last answer
-    vera_answer_symbol = VERA_ANSWER_SYMBOL.lower()
-    last_index = verifier_response.lower().rfind(vera_answer_symbol)
-    answer = verifier_response[last_index + len(vera_answer_symbol):].strip() if last_index != -1 else None
-    
+    # Define possible answer symbols
+    answer_symbols = [VERA_ANSWER_SYMBOL.lower(), "final verification answer:"]
+
+    # Initialize answer as None
+    answer = None
+
+    # Check for each answer symbol
+    for symbol in answer_symbols:
+        last_index = verifier_response.lower().rfind(symbol)
+        if last_index != -1:
+            answer = verifier_response[last_index + len(symbol):].strip()
+            break
+
     if not answer:
         print(colored(f"WARNING in extract_verifier_approval: {answer=} with {type(answer)=}, "
                       f"and full verifier_response (length {len(verifier_response)}): "

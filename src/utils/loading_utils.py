@@ -97,3 +97,16 @@ def parse_vllm_args(model_path, remaining_args=None):
     engine_group.set_defaults(model=model_path)  # Set default model from config
     args = vars(parser.parse_args(remaining_args))
     return args
+
+def print_configs(config, model_config, verifier_model_config, strict_verifier_model_config):
+    print("-"*100)
+    print(f"Using model: {config['model']}, verifier model: {config.get('verifier_model')}, strict verifier model: {config.get('strict_verifier_model')}")
+    print("-"*100)
+    print(f"Config: {config}")
+    print("-"*100)
+    print(f"Model config: {model_config}")
+    print("-"*100)
+    print(f"Verifier model config: {verifier_model_config}")
+    print("-"*100)
+    print(f"Strict verifier model config: {strict_verifier_model_config}")
+    print("-"*100)

@@ -16,6 +16,36 @@ import json
 import random
 import torch.distributed as dist
 
+import gc
+import torch
+from vllm.distributed.parallel_state import destroy_model_parallel
+
+# ----------------------------------------------------------------------
+# Utility that reliably frees a vLLM instance and its KV cache
+# ----------------------------------------------------------------------
+def cleanup_llm(llm):
+    """
+    Tear down all model‑parallel buffers, free CUDA memory, and close
+    NCCL/Ray resources that keep the KV cache alive.
+    """
+    if llm is None:
+        return None
+
+    # 1. Let vLLM dismantle model‑parallel state
+    destroy_model_parallel()
+
+    # 2. Drop the last Python reference
+    del llm
+
+    # 3. Run the CPython GC & clear PyTorch’s allocator
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    # 4. Close the NCCL pg if it exists
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    return None
 
 def main(config: dict, model_config: dict, verifier_model_config: dict, strict_verifier_model_config: dict, args: dict, verifier_args: dict, strict_verifier_args: dict, task_id: int, num_tasks: int, verbose: bool):
     start_time = datetime.now()
@@ -29,7 +59,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
     print("-"*100)
     print(f"Strict verifier model config: {strict_verifier_model_config}")
     print("-"*100)
-
+        
     # Enable reasoning if specified in the model configurations
     if model_config.get("model", {}).get("reasoning"):
         args["enable_reasoning"] = True
@@ -68,13 +98,14 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
     os.makedirs(output_dirpath, exist_ok=True)
 
     # --- Stage 1: Generate Solutions ---
-    print("Stage 1: Generating Solutions...")
+    print("Stage 1: Generating Solutions...")    
     llm = LLM(**args)
     sampling_params = llm.get_default_sampling_params()
     sampling_params.max_tokens = model_config.get('model', {}).get('max_new_tokens')
     sampling_params.n = config['num_generations']
     dataset = list(load_eval_dataset(config, task_id, num_tasks))
     total_eval = len(dataset)
+    
 
     expected_files = [f"{output_dirpath}/task_{task_id}_eval_{i}-{i+config['batch_size']}.json" for i in range(0, total_eval, config['batch_size'])]
     all_files_exist = all(os.path.exists(f) for f in expected_files)
@@ -96,9 +127,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
             verifier_llm = llm
             print("Using the same LLM for both generation and initial verification.")
         else:
-            del llm
-            if dist.is_initialized():
-                dist.destroy_process_group()
+            llm = cleanup_llm(llm)
             print("Loading Verifier LLM...")
             verifier_llm = LLM(**verifier_args)
         verifier_sampling_params = verifier_llm.get_default_sampling_params()
@@ -128,9 +157,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
             strict_verifier_llm = verifier_llm
             print("Using the same LLM for both initial and strict verification.")
         else:
-            del verifier_llm
-            if dist.is_initialized():
-                dist.destroy_process_group()
+            verifier_llm = cleanup_llm(verifier_llm)
             print("Loading Strict Verifier LLM...")
             strict_verifier_llm = LLM(**strict_verifier_args)
         strict_verifier_sampling_params = strict_verifier_llm.get_default_sampling_params()
@@ -141,6 +168,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
         else:
             strict_verifier_sampling_params.max_tokens = 16
             strict_verifier_model_config["model"]["max_new_tokens"] = 16
+
         print("\nStage 3: Strict Verification...")
         correct_counts = defaultdict(int)
         for file in trange(len(json_files), desc=f"Strict Verification & Eval Task {task_id}"):
@@ -163,9 +191,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
 
             correct_counts["bon-mav"] += results['correct_count']
 
-        del strict_verifier_llm
-        if dist.is_initialized():
-            dist.destroy_process_group()
+        strict_verifier_llm = cleanup_llm(strict_verifier_llm)
         print("Stage 3 Complete.")
     else:
         correct_counts = defaultdict(int)
@@ -270,7 +296,6 @@ if __name__ == "__main__":
         print(f"Generator Args: {args}")
         print(f"Verifier Args: {verifier_args}")
         print(f"Strict Verifier Args: {strict_verifier_args}")
-
     main(config, model_config, verifier_model_config, strict_verifier_model_config, args, verifier_args, strict_verifier_args, task_id, num_tasks, verbose)
 
 

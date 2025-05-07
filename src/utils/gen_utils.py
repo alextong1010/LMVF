@@ -84,3 +84,29 @@ def extract_answer(solution: str, dataset_name: str, err_msg: Optional[str] = No
         return None
 
     return answer
+
+def make_to_chat_prompt(config):
+    def to_chat_prompt_v1(problem):
+        return {
+            # "prompt": [{"role": "user", "content":  get_gen_prompt(config['dataset'], problem['problem'])}]
+            "prompt": [{"role": "user", "content":  [{"type": "text", "text": get_gen_prompt(config['dataset'], problem['problem'])}]}]
+        }
+    
+    def to_chat_prompt_v2(problem):
+        return {
+            "prompt": [{"role": "user", "content":  get_gen_prompt(config['dataset'], problem['problem'])}]
+
+            # "prompt": [{"role": "user", "content":  get_gen_prompt(config['dataset'], problem['problem'])}]
+        }
+    def to_chat_prompt_v3(problem):
+        return {            
+            "prompt": get_gen_prompt(config['dataset'], problem['problem'])
+        }
+
+    if config['model'] == "Qwen2.5-0.5B-Instruct":
+        print("Model is Qwen2.5-0.5B-Instruct, using v2 prompt")
+        return to_chat_prompt_v3
+        # return to_chat_prompt_v1
+    else:
+        print("Model is not Qwen2.5-0.5B-Instruct, using v1 prompt")
+        return to_chat_prompt_v1
