@@ -215,6 +215,8 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
                     raise ValueError(f"Invalid pass@n format: {mode}")
         print("Stage 4 Complete.")
 
+    if
+
     print("\nFinal Results:")
     accuracy_dict = {}
     for eval_mode in eval_modes:

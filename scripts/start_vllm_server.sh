@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH -c 4                               # 4 cores per task
-#SBATCH -t 02:00:00
+#SBATCH -t 00-05:00:00
 #SBATCH -o vllm_logs/output_%j.log
 #SBATCH -e vllm_logs/error_%j.log
 #SBATCH -p gpu
@@ -29,9 +29,10 @@ NODELIST=($(scontrol show hostnames $SLURM_JOB_NODELIST))
 
 VLLM_NODE="${NODELIST[0]}"  # Node 0 for vLLM
 
-echo "VLLM_NODE: $VLLM_NODE"
+# Write the node to a file
+echo $VLLM_NODE > vllm_node.txt
 
 # # Run vLLM server on the 3rd node (Group 2)
-srun --nodes=1 --ntasks=1 --nodelist="$VLLM_NODE" trl vllm-serve --model Qwen/Qwen2.5-0.5B-Instruct --tensor_parallel_size 1 &
+srun --nodes=1 --ntasks=1 --nodelist="$VLLM_NODE" trl vllm-serve --model Qwen/Qwen2.5-0.5B-Instruct --tensor_parallel_size 1 --port 8001 &
 
 wait

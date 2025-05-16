@@ -46,8 +46,6 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
     dataset = load_train_dataset(config, task_id=0, num_tasks=1)
     d = load_train_dataset(config, task_id=0, num_tasks=2)
 
-    breakpoint()
-
     dataset = dataset.map(to_chat_prompt)
 
     
@@ -55,11 +53,12 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
     with open(f"verifier_hosts_{config_args.verifier_server_id}.txt") as f:
         hosts_ports = [tuple(line.strip().split(":")) for line in f]
 
+    breakpoint()
     # hosts_ports now looks like [("ip-10-0-0-5", "8000"), ("ip-10-0-0-6", "8000"), ...]
     verifier_reward = LLMVerifier(
             [(h, int(p)) for h, p in hosts_ports],
-            verifier_model_name,
-            strict_verifier_model_name,
+            verifier_model_path,
+            strict_verifier_model_path,
             dataset,
             config)
 

@@ -3,8 +3,9 @@
 #SBATCH --nodes=1                         # <─ number of verifier GPUs
 #SBATCH --gres=gpu:1
 #SBATCH -c 4
-#SBATCH -t 01-00:00:00
-#SBATCH -p seas_gpu
+#SBATCH -t 00-02:00:00
+#SBATCH -p kempner_h100
+#SBATCH --account=kempner_sham_lab
 #SBATCH --mem=32GB
 #SBATCH -o verifier_logs/out_%j.log
 #SBATCH -e verifier_logs/err_%j.log
@@ -19,7 +20,8 @@ export HF_HOME=/n/netscratch/hankyang_lab/Lab/alex/.cache/huggingface
 
 # If you want a different verifier model, export MODEL_ID before sbatch:
 : "${MODEL_ID:=Qwen/Qwen2.5-3B-Instruct}"
-: "${VLLM_PORT:=8000}"           # all nodes use same port
+# : "${MODEL_ID:=deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B}"
+: "${VLLM_PORT:=8002}"           # all nodes use same port
 
 # ── 1.  Get node list and prepare output file ────────────────────────────────
 NODELIST=($(scontrol show hostnames $SLURM_JOB_NODELIST))

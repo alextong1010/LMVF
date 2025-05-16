@@ -8,12 +8,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.utils.loading_utils import load_and_validate_config, parse_vllm_args, parse_initial_arguments, print_configs
 from src.utils.dataset_utils import load_train_dataset
 from trl import GRPOConfig, GRPOTrainer
-from src.utils.reward_verifiers import LLMVerifier
+from src.utils.reward_verifiers_v2 import LLMVerifier
 from src.utils.gen_utils import make_to_chat_prompt, check_prompt_version
-
+from src.utils.sanity_check import SanityCheck
 from datetime import datetime
 import random
 import argparse
+
+from src.utils.gen_utils import extract_answer
 
 
 def main(config, model_config, verifier_model_config, strict_verifier_model_config, verifier_args, strict_verifier_args, config_args):
@@ -34,7 +36,7 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
     strict_verifier_model_name = config['strict_verifier_model']
     verifier_model_path = verifier_model_config['model']['path']
     strict_verifier_model_path = strict_verifier_model_config['model']['path']
-
+    batch_size = config['per_device_train_batch_size'] // config['num_generations']
 
     slurm_job_id = os.environ.get("SLURM_JOB_ID")
     if slurm_job_id:
@@ -52,6 +54,7 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
 
     dataset = dataset.map(make_to_chat_prompt(config, prompt_version))
 
+    dataset = dataset.map(lambda ex: {**ex, "clean_solution": extract_answer(ex["solution"], config['dataset'])})
     # Reward Verifier
     with open(f"verifier_hosts.txt") as f:
         verifier_hosts_port = f.read().strip()
@@ -61,6 +64,7 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
     else:
         strict_verifier_hosts_port = verifier_hosts_port
 
+    verifier_reward = SanityCheck(config, prompt_version)
     # verifier_reward = LLMVerifier(
     #         verifier_hosts_port,
     #         verifier_model_path,
@@ -70,12 +74,14 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
     #         verifier_model_config,
     #         strict_verifier_model_config,
     #         dataset,
-    #         prompt_version)
+    #         prompt_version,
+    #         logging=config_args.logging,
+    #         output_dirpath=output_dirpath,
+    #         batch_size=batch_size)
 
-    def reward_num_unique_chars(prompts, completions, **kwargs):
-        # print(completions)
-        breakpoint()
-        return [len(set(c)) for c in completions]
+    # def reward_num_unique_chars(completions, **kwargs):
+    #     # print(completions)
+    #     return [len(set(c)) for c in completions]
 
         # Need to modify vllm_server_host, vllm_server_port, vllm_server_timeout
 
@@ -108,7 +114,7 @@ def main(config, model_config, verifier_model_config, strict_verifier_model_conf
     trainer = GRPOTrainer(
         model=model_config['model']['path'],
         args=training_args,
-        reward_funcs = reward_num_unique_chars, # verifier_reward, #reward_num_unique_chars,
+        reward_funcs = verifier_reward, # reward_num_unique_chars, # verifier_reward, #reward_num_unique_chars,
         train_dataset=dataset,
     )
     # breakpoint()
@@ -136,6 +142,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Verbose output",
     )
+    parser.add_argument(
+        "--logging", 
+        default=False,
+        action="store_true",
+        help="Logs output to a file",
+    )
+
     # Use parse_known_args() to separate script args from others (like vLLM args)
     config_args, remaining_args = parser.parse_known_args()
     config_args.config_path = os.path.join(repo_root, config_args.config_path)
