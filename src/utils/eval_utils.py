@@ -1,5 +1,5 @@
 from utils.dataset_utils import check_correct_answer
-from utils.vera_utils import generate_initial_verifier_responses, generate_strict_verifier_approvals
+from utils.vera_utils import generate_initial_verifier_responses, generate_strict_verifier_approvals, generate_borda_responses
 from tqdm import trange
 from datetime import datetime
 from vllm import LLM
@@ -55,7 +55,7 @@ def evaluate_problem_bon_mav(config, verifier_model_config, data_with_generated_
         strict_verifier_sampling_params: The sampling parameters for the strict verifier model.
     """
     correct_count = 0 
-    batch_size = config['verifier_batch_size']
+    batch_size = config['batch_size']
     
     # Process data in batches
     for i in trange(0, len(data_with_generated_solutions), batch_size, desc="Verifying"):
@@ -120,6 +120,7 @@ def run_initial_verification_batch(
     batch_data: List[Dict[str, Any]],
     verifier_llm: LLM,
     verifier_sampling_params: dict,
+    borda: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Runs the initial verification pass using the verifier LLM.
@@ -135,10 +136,14 @@ def run_initial_verification_batch(
         list: Updated batch data with 'verifier_responses'.
     """
     print(f"Running initial verification for batch of size {len(batch_data)}...")
-    # Use the new vera_utils function for the first pass
-    updated_batch_data = generate_initial_verifier_responses(
-        config, verifier_model_config, batch_data, verifier_llm, verifier_sampling_params
-    )
+    if borda:
+        updated_batch_data = generate_borda_responses(
+            config, verifier_model_config, batch_data, verifier_llm, verifier_sampling_params
+        )
+    else:
+        updated_batch_data = generate_initial_verifier_responses(
+            config, verifier_model_config, batch_data, verifier_llm, verifier_sampling_params
+        )
     print("Initial verification complete for batch.")
     return updated_batch_data
 
@@ -222,4 +227,32 @@ def run_strict_verification_and_evaluate_batch(
     print(f"BoN-MAV evaluation complete for batch. Correct: {correct_count}/{len(batch_data)}")
     return {'correct_count': correct_count, 'updated_batch_data': batch_data}
 
+def run_borda_evaluation_batch(
+    config: dict,
+    verifier_model_config: dict,
+    batch_data: List[Dict[str, Any]],
+    verifier_llm: LLM,
+    verifier_sampling_params: dict
+) -> List[Dict[str, Any]]:
+    correct_count = 0
+    for data in batch_data:
+        gt_answer = data['gt_answer']
+        generated_answers = data['generated_answers']
+        verifier_rankings_weights = data['verifier_rankings_weights']
 
+        # Find the index of the generated answer that has the highest weight
+        best_index = max(verifier_rankings_weights, key=verifier_rankings_weights.get)
+        best_generated_answer = generated_answers[best_index]
+
+        if config['verbose']:
+            print(f"gt_answer: {gt_answer}")
+            print(f"generated_answers: {generated_answers}")
+            print(f"verifier_rankings_weights: {verifier_rankings_weights}")
+            print(f"best_index: {best_index}")
+            print(f"best_generated_answer: {best_generated_answer}")
+
+        is_correct = check_correct_answer(best_generated_answer, gt_answer, config['dataset'])
+        if is_correct:
+            correct_count += 1
+    print(f"Borda evaluation complete for batch. Correct: {correct_count}/{len(batch_data)}")
+    return {'correct_count': correct_count, 'updated_batch_data': batch_data}

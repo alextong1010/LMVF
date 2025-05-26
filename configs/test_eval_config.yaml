@@ -6,7 +6,7 @@ model: "Qwen2.5-0.5B-Instruct"
 # strict_verifier_model: "Qwen2.5-0.5B-Instruct"
 
 # verifier_model: null    # Optional separate model for verification (uses main model if null)
-verifier_model: "deepseek-r1-distill-qwen-1.5b" # "gemma-3-1b-it" # "deepseek-r1-distill-qwen-1.5b"
+verifier_model: "Qwen2.5-3B-Instruct"
 strict_verifier_model: "Qwen2.5-3B-Instruct"
 
 # Other settings
@@ -20,13 +20,14 @@ dataset: "math"
 # Generation settings
 num_generations: 2
 batch_size: 2
-verifier_batch_size: 2
+# verifier_batch_size: 2
 
 # Evaluation settings
 eval_mode: 
-    - "pass@1"
-    - "pass@2"
-    - "bon-mav"
+    # - "pass@1"
+    # - "pass@2"
+    - "borda"
+    # - "bon-mav"
 verbose: false
 
 # Output settings

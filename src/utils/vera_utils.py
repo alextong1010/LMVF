@@ -1,8 +1,102 @@
-from prompts.vera_prompts import get_vera_prompt, VERA_ASK_FOR_APPROVAL_ONLY_PROMPT, VERA_ANSWER_SYMBOL
+from prompts.vera_prompts import get_vera_prompt, VERA_ASK_FOR_APPROVAL_ONLY_PROMPT, VERA_ANSWER_SYMBOL, get_borda_prompt, VERA_RANKING_SYMBOL
 from termcolor import colored
 from utils.loading_utils import load_domain_specific_verifiers
 from vllm import LLM
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import re
+
+_RANK_RE = re.compile(r"[\[\(]?\s*(\d+(?:\s*,\s*\d+)*)\s*[\]\)]?")
+
+def generate_borda_responses(
+    config: dict,
+    verifier_model_config: dict,
+    batch_data: List[Dict[str, Any]],
+    verifier_llm: LLM,
+    verifier_sampling_params: dict
+) -> List[Dict[str, Any]]:
+    
+    user_prompts = []
+    veras = load_domain_specific_verifiers(config['dataset'])
+    num_veras = len(veras)
+
+    # Check if generated_solutions exist in the data
+    if not batch_data or 'generated_solutions' not in batch_data[0]:
+         print(colored("Warning: 'generated_solutions' key not found in batch_data[0]. Cannot generate verifier prompts.", "yellow"))
+         # Add empty responses and return early or handle as error
+         for data in batch_data:
+             data['verifier_responses'] = [[] for _ in range(config['num_generations'])]
+         return batch_data
+
+    for data in batch_data:
+        generated_solutions = data.get("generated_solutions", [])
+        if not generated_solutions:
+             raise ValueError(f"No generated solutions found for data item {data}")
+
+        for vera_name in veras:
+            borda_prompt = get_borda_prompt(config['dataset'], vera_name, data['problem'], generated_solutions)
+            user_prompts.append(borda_prompt)
+
+    assert len(user_prompts) == num_veras * len(batch_data), colored(f"Number of user prompts is not equal to the number of veras * batch size. Double check!", "red") 
+    inputs = [
+        [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": prompt}]
+            },
+        ] for prompt in user_prompts
+    ]
+    print(f"\nGenerating {num_veras} different verifier responses...")
+    outputs = verifier_llm.chat(inputs, verifier_sampling_params, use_tqdm=False)
+
+    verifier_responses = []
+    for output in outputs:
+        response_text = output.outputs[0].text or "" # Handle potential None
+        response_text = response_text.split("<end_of_turn>")[0].split("<|eot_id|>")[0].strip()
+
+        if verifier_model_config and verifier_model_config.get("model", {}).get("reasoning"):
+            try:
+                # Try to split using </think> token
+                response = response_text.split("</think>")[1]
+            except IndexError:
+                # Default to using the whole response if </think> is not found
+                response = response_text
+            verifier_responses.append(response)
+        else:
+            verifier_responses.append(response_text)
+
+    assert len(verifier_responses) == num_veras * len(batch_data), colored(f"Number of verifier responses is not equal to the number of veras * batch size. Double check!", "red") 
+
+    # Extract the ranking from the verifier responses
+    verifier_rankings = []
+    batch_size = len(batch_data)
+    verifier_rankings_weights = [{} for _ in range(batch_size)]
+    num_generations = config['num_generations']
+    # Initialize the weights of each dict in verifier_rankings_weights to 0
+    for i in range(batch_size):
+        for j in range(num_generations):
+            verifier_rankings_weights[i][j] = 0
+
+    for i, response in enumerate(verifier_responses):
+        ranking = extract_verifier_ranking(response)
+        if ranking is not None:
+            if len(ranking) > num_generations:
+                ranking = ranking[:num_generations]
+            for j, gen_index in enumerate(ranking):
+                # print(f"{i=}, {j=}, {gen_index=}")
+                # Make sure gen_index is in the range of the number of veras otherwise it will be ignored
+                if gen_index < num_generations and gen_index >= 0:  
+                    verifier_rankings_weights[i // num_veras][gen_index] += num_generations - j
+        verifier_rankings.append(ranking)
+
+    # Update each data entry in the batch with verifier responses
+    for data_idx, data in enumerate(batch_data):
+        start_idx = data_idx * num_veras
+        end_idx = start_idx + num_veras
+        data['verifier_responses'] = verifier_responses[start_idx:end_idx]
+        data['verifier_rankings'] = verifier_rankings[start_idx:end_idx]
+        data['verifier_rankings_weights'] = verifier_rankings_weights[data_idx]
+
+    return batch_data
 
 def generate_initial_verifier_responses(
     config: dict,
@@ -255,17 +349,15 @@ def generate_strict_verifier_approvals(
 def extract_verifier_approval(verifier_response: str) -> bool:
     """Extract the verifier's approval from the response."""
     # Define possible answer symbols
-    answer_symbols = [VERA_ANSWER_SYMBOL.lower(), "final verification answer:"]
+    answer_symbol = VERA_ANSWER_SYMBOL.lower()
 
     # Initialize answer as None
     answer = None
 
     # Check for each answer symbol
-    for symbol in answer_symbols:
-        last_index = verifier_response.lower().rfind(symbol)
-        if last_index != -1:
-            answer = verifier_response[last_index + len(symbol):].strip()
-            break
+    last_index = verifier_response.lower().rfind(answer_symbol)
+    if last_index != -1:
+        answer = verifier_response[last_index + len(answer_symbol):].strip()
 
     if not answer:
         print(colored(f"WARNING in extract_verifier_approval: {answer=} with {type(answer)=}, "
@@ -295,3 +387,36 @@ def extract_verifier_approval(verifier_response: str) -> bool:
                           f"AND first word does not contain 'true' or 'false. Full verifier_response: "
                           f"\n{'-' * 30}\n{verifier_response}\n{'-' * 30} (WARNING in extract_verifier_approval)\n", "yellow"))
             return False
+
+def extract_verifier_ranking(verifier_response: str) -> Optional[List[int]]:
+    """Extract the verifier's Borda ranking (1-based, converted to 0-based) from the response."""
+    lower_response = verifier_response.lower()
+    ranking_symbols = [
+        VERA_RANKING_SYMBOL.lower(),
+        "final verification ranking"
+    ]
+
+    after_symbol = None
+    for symbol in ranking_symbols:
+        idx = lower_response.rfind(symbol)
+        if idx != -1:
+            after_symbol = verifier_response[idx + len(symbol):].strip()
+            break
+
+    if not after_symbol:
+        print(colored(f"WARNING: Could not find ranking symbol '{VERA_RANKING_SYMBOL}' in response.", "yellow"))
+        print(f"Full response:\n{'-'*30}\n{verifier_response}\n{'-'*30}")
+        return None
+
+    # Extract a comma-separated list of integers with optional brackets
+    match = _RANK_RE.search(after_symbol)
+    if not match:
+        print(colored(f"WARNING: Could not parse ranking list from response section: '{after_symbol}'", "yellow"))
+        return None
+
+    try:
+        ranking = [int(tok) - 1 for tok in match.group(1).split(",")]
+        return ranking
+    except Exception as e:
+        print(colored(f"ERROR parsing ranking list: {e}. Raw extracted string: '{ranking_str}'", "red"))
+        return None

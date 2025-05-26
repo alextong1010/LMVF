@@ -3,12 +3,16 @@
 # Model settings
 # model: "deepseek-r1-distill-qwen-1.5b"  # Main model for generation
 model: "Qwen2.5-0.5B-Instruct" # "gemma-3-1b-it" #"Qwen2.5-0.5B-Instruct"
-# verifier_model: "Qwen2.5-0.5B-Instruct"
-# strict_verifier_model: "Qwen2.5-0.5B-Instruct"
+verifier_model: "Qwen2.5-0.5B-Instruct"
+strict_verifier_model: "Qwen2.5-0.5B-Instruct"
+# custom_model_path: "/n/netscratch/hankyang_lab/Lab/alex/LMVF/train/Qwen2.5-0.5B-Instruct/math/train_14806701/checkpoint-250"
+# custom_model_path: "/n/netscratch/hankyang_lab/Lab/alex/LMVF/train/Qwen2.5-0.5B-Instruct/math/train_14856565/checkpoint-1000"
 
 # verifier_model: null    # Optional separate model for verification (uses main model if null)
-verifier_model: "deepseek-r1-distill-qwen-1.5b" # "gemma-3-1b-it" # "deepseek-r1-distill-qwen-1.5b"
-strict_verifier_model: "Qwen2.5-3B-Instruct"
+# verifier_model: #"Qwen2.5-3B-Instruct" #"deepseek-r1-distill-qwen-1.5b" # "gemma-3-1b-it" # "deepseek-r1-distill-qwen-1.5b"
+# strict_verifier_model: #"Qwen2.5-3B-Instruct"
+
+
 
 # Other settings
 seed: 42
@@ -18,16 +22,19 @@ num_nodes: 2
 # Dataset settings
 dataset: "math"
 
+num_generators: 2
+
 # Generation settings
 num_generations: 4
 batch_size: 64
-verifier_batch_size: 16
+# verifier_batch_size: 16
 
 # Evaluation settings
 eval_mode: 
     - "pass@1"
     - "pass@4"
     - "bon-mav"
+    # - "borda"
 verbose: false
 
 # Output settings

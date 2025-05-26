@@ -2,53 +2,43 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from trl.extras.vllm_client import VLLMClient
-import re, itertools
-from typing import List, Tuple
-from transformers import AutoTokenizer
+from typing import List
 from src.utils.vera_utils import load_domain_specific_verifiers
 from src.prompts.vera_prompts import get_vera_prompt, VERA_ASK_FOR_APPROVAL_ONLY_PROMPT
 from datasets import Dataset
 from termcolor import colored
-
-
-
-# Ask the verifier to reply with the single word **True** or **False**
-PROMPT_TEMPLATE = """You are a factual verifier.
-If the model answer is entirely correct, reply with the single word **True**.
-If it is wrong or partially wrong, reply with the single word **False**.
-
-QUESTION:
-{prompt}
-
-MODEL ANSWER:
-{completion}
-
-Your reply:"""
-
-TRUE_RE  = re.compile(r"\btrue\b",  re.I)
-FALSE_RE = re.compile(r"\bfalse\b", re.I)
+from openai import OpenAI
 
 class LLMVerifier:
     """
-    Send every (prompt,completion) to *every* vLLM server in `verifier_hosts_ports` and `strict_verifier_hosts_ports`.
+    Send every (prompt,completion) to *every* vLLM server in `verifier_hosts_ports` and `strict_verifier_hosts_ports`. 
+    Currently, only one server is used because having multiple servers is unnecessary.
     Reward = number of servers that replied "True" (0 … len(servers)).
     """
     def __init__(self,
-                 verifier_hosts_ports: List[Tuple[str,int]],
-                 verifier_model_name: str,
-                 strict_verifier_hosts_ports: List[Tuple[str,int]],
-                 strict_verifier_model_name: str,
+                 verifier_hosts_port: str,
+                 verifier_model_path: str,
+                 strict_verifier_hosts_port: str,
+                 strict_verifier_model_path: str,
                  config: dict,
                  verifier_model_config: dict,
                  strict_verifier_model_config: dict,
                  dataset: Dataset,
+                 prompt_version: int,
                  name: str = "llm_verifier"):
-        self.verifier_clients = [VLLMClient(h, p, connection_timeout=30)
-                        for h, p in verifier_hosts_ports]
-        self.verifier_tokenizer = AutoTokenizer.from_pretrained(verifier_model_name)   # ← local tokenizer
+        
+        openai_api_key = "EMPTY" # vLLM doesn't require a key by default
+        verifier_openai_api_base = f"http://{verifier_hosts_port}/v1"
+        strict_openai_api_base = f"http://{strict_verifier_hosts_port}/v1"
+
+
+        self.verifier_client = OpenAI(
+                    api_key=openai_api_key,
+                    base_url=verifier_openai_api_base,
+                    timeout=60.0, # Add a timeout
+                )
         self.verifier_max_new_tokens = verifier_model_config['model']['max_new_tokens']
-        self.strict_verifier_max_new_tokens = strict_verifier_model_config['model']['max_new_tokens']
+        self.strict_verifier_max_new_tokens = 2048 if strict_verifier_model_config['model']['reasoning'] else 16
         self.veras = load_domain_specific_verifiers(config['dataset'])
         self.direct_veras_idx = [i for i, v in enumerate(self.veras) if "direct" in v]
         self.config = config
@@ -58,28 +48,31 @@ class LLMVerifier:
         self.__name__ = name
         self.curr_verifier_idx = 0
         self.curr_strict_verifier_idx = 0
-
-        if strict_verifier_model_name != verifier_model_name:
-            self.strict_verifier_clients = [VLLMClient(h, p, connection_timeout=30)
-                            for h, p in strict_verifier_hosts_ports]
-            self.strict_verifier_tokenizer = AutoTokenizer.from_pretrained(strict_verifier_model_name)
+        self.prompt_version = prompt_version
+        
+        if strict_verifier_model_path != verifier_model_path:
+            self.strict_verifier_client = OpenAI(
+                    api_key=openai_api_key,
+                    base_url=strict_openai_api_base,
+                    timeout=60.0, # Add a timeout
+                )
         else:
-            self.strict_verifier_clients = self.verifier_clients
-            self.strict_verifier_tokenizer = self.verifier_tokenizer
+            self.strict_verifier_client = self.verifier_client
 
     # ------------------------------------------------------------------
     def _batch_generate(self, client, texts: List[str], strict: bool = False):
         """helper – returns list[str] decoded generations"""
-        ids = client.generate(
-            prompts=texts,
-            n=1,
-            max_tokens=self.verifier_max_new_tokens if not strict else self.strict_verifier_max_new_tokenss,
-            temperature=self.verifier_model_config['model']['temperature'] if not strict else self.strict_verifier_model_config['model']['temperature'],
-        )
-        if not strict:
-            outputs = [self.verifier_tokenizer.decode(seq, skip_special_tokens=True) for seq in ids]
-        else:
-            outputs = [self.strict_verifier_tokenizer.decode(seq, skip_special_tokens=True) for seq in ids]
+        breakpoint()
+        outputs = []
+        for text in texts:
+            outputs.append(client.chat.completions.create(
+                model=self.verifier_model_config['model']['path'] if not strict else self.strict_verifier_model_config['model']['path'],
+                messages=text,
+                max_tokens=self.verifier_max_new_tokens if not strict else self.strict_verifier_max_new_tokens,
+                temperature=self.verifier_model_config['model']['temperature'] if not strict else self.strict_verifier_model_config['model']['temperature'],
+                n=1,
+            ))
+        breakpoint()
         return outputs
 
 
@@ -90,11 +83,16 @@ class LLMVerifier:
                  **kwargs) -> List[float]:
         """Return len(prompts) rewards (float, but actually int 0…N)."""
 
-        use_verifier_idx = self.curr_verifier_idx%len(self.verifier_clients)
-        use_strict_verifier_idx = self.curr_strict_verifier_idx%len(self.strict_verifier_clients)
+        # Extract the full text first, could be any of the following formats.
+        if self.prompt_version == 1:
+            raw_texts = [p[0]['content'][0]['text'] for p in prompts]
+        elif self.prompt_version == 2:
+            raw_texts = [p[0]['content'] for p in prompts]
+        elif self.prompt_version == 3:
+            raw_texts = prompts
+        else:
+            raise ValueError(f"Unsupported prompt version: {self.prompt_version}")
 
-        # Extract the full text first
-        raw_texts = [p[0]['content'][0]['text'] for p in prompts]
         questions = []
         for text in raw_texts:
             try:
@@ -106,8 +104,14 @@ class LLMVerifier:
                 # Fallback or logging if parsing fails
                 print(f"Warning: Could not parse question accurately from text: {text}")
                 questions.append(text) # Using full text as fallback for now
-
-        answers = [c[0]['content'] for c in completions]
+        
+        if self.prompt_version == 1:
+            answers = [c[0]['content'][0]['text'] for c in completions]
+        elif self.prompt_version == 2:
+            answers = [c[0]['content'] for c in completions]
+        elif self.prompt_version == 3:
+            answers = completions
+        
         batch_prompts = []
         for question, answer in zip(questions, answers):
             for vera_name in self.veras:
@@ -119,12 +123,12 @@ class LLMVerifier:
             [
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": prompt}]
+                    "content": prompt
                 },
             ] for prompt in batch_prompts
         ]
-        verifier_outputs = self._batch_generate(self.verifier_clients[use_verifier_idx], inputs, strict=False)
-
+        verifier_outputs = self._batch_generate(self.verifier_client, inputs, strict=False)
+        breakpoint()
         strict_inputs = []
         original_indices = []
         global_response_idx = 0
@@ -148,13 +152,14 @@ class LLMVerifier:
                 strict_inputs.append(strict_prompt)
                 original_indices.append(global_response_idx)
             global_response_idx += 1
+        breakpoint()
         
         if not strict_inputs:
             print(colored("Warning: No strict prompts generated (maybe all verifiers were direct?). Proceeding to finalize outputs.", "yellow"))
             strict_decoded_outputs = []
         else:
             print(f"\nGetting {len(strict_inputs)} strict True/False approvals for non-direct verifier responses in the batch...\n")
-            strict_verifier_outputs = self._batch_generate(self.strict_verifier_clients[use_strict_verifier_idx], strict_inputs, strict=True)
+            strict_verifier_outputs = self._batch_generate(self.strict_verifier_client, strict_inputs, strict=True)
 
             strict_uses_reasoning = self.strict_verifier_model_config and self.strict_verifier_model_config.get("model", {}).get("reasoning")
 
@@ -171,7 +176,7 @@ class LLMVerifier:
                     strict_decoded_outputs.append(response)
                 else:
                     strict_decoded_outputs.append(response_text)
-
+        breakpoint()
         # Combine initial and strict responses to get final outputs
         final_outputs_flat = {}
         strict_output_idx = 0
@@ -197,7 +202,7 @@ class LLMVerifier:
 
         # Reshape final_outputs_flat back into the batch structure
         current_read_idx = 0
-                    
+        breakpoint()
         # Extract the True/False approvals from the strict verifier outputs
 
 
@@ -205,4 +210,4 @@ class LLMVerifier:
         self.curr_strict_verifier_idx += 1
 
         # convert to float because GRPO expects list[float]
-        return [float(v) for v in votes_true]
+        return None

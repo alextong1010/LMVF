@@ -38,11 +38,11 @@ def main(args: dict):
         },
         {
             "role": "user",
-            "content": "Hello."
+            "content": "How many vertical asymptotes does the graph of $y=\\frac{2}{x^2+x-6}$ have?"
         },
         {
             "role": "assistant",
-            "content": "The solution is correct. **Final Answer:** $\\boxed{42}$ **Verification:** 1. The regular hexagon is divided into six equilateral triangles, each with a perimeter of 21 inches. 2. Each triangle's perimeter is 3s = 21, leading to s = 7 inches. 3. The hexagon's perimeter is 6s = 6*7 = 42 inches. 4. The reasoning aligns with the properties of a regular hexagon and equilateral triangles. Thus, the final answer is $\\boxed{42}$, which is correct.",
+            "content": "A vertical asymptote occurs when the denominator of a rational function equals zero.\nTo find the vertical asymptotes, we set the denominator equal to zero and solve for $x$:\n$x^2+x-6=0$\n$(x+3)(x-2)=0$\nSo, $x=-3$ or $x=2$.\nTherefore, the graph of $y=\\frac{2}{x^2+x-6}$ has $\\boxed{2}$ vertical asymptotes: $x=-3$ and $x=2$.\nThe answer is: 2"
         },
         {
             "role": "user",
@@ -83,7 +83,8 @@ if __name__ == "__main__":
     # Add engine args
     engine_group = parser.add_argument_group("Engine arguments")
     EngineArgs.add_cli_args(engine_group)
-    engine_group.set_defaults(model="google/gemma-3-1b-it")
+    # engine_group.set_defaults(model="google/gemma-3-1b-it")
+    engine_group.set_defaults(model="microsoft/Phi-3-mini-4k-instruct")
     # engine_group.set_defaults(model="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
 
     # Add sampling params

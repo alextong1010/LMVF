@@ -23,6 +23,10 @@ Try: conda install -c nvidia nccl
 2. Not sure why, but vllm 0.8.3 and vllm 0.8.4 triples the generation time and 10x the verification time of when using vllm 0.8.1
 3. Gemma 3 doesnt work with vllm 0.8.5 post 1, which is what trl[vllm] installs.
 
+Note: 
+1. train Number theory MATH 7115 and 7117 have empty \\boxed{} answers. Fix. Add 0 for both. 
+2. algebra/25040 and algebra/24014 MATH trainhave missing {}. add them
+
 
 To Run:
 python run_eval.py --config-path configs/eval_config.yaml (1 GPU)
@@ -43,9 +47,14 @@ To confirm/do:
 6. Check if models other than qwen2.5 0.5b instruct need to use to_chat_prompt_v3
 7. Debug for slurm, i.e. what is the slurm training script looking like with vllm colocate?
 8. Remove colocate and use servers instead
+9. For models, figure out which prompting version is utilized
+10. make training and eval more efficient
+11. Modify run_initial_verification_batch to parse both borda and bonmav to make it more efficient, if borda works
 
 Note:
 In general, only instruction-tuned models have a chat template. Base models may perform poorly as they are not trained to respond to the chat conversation.
+It fails (    raise RuntimeError(f"NCCL error: {error_str}")
+RuntimeError: NCCL error: unhandled cuda error (run with NCCL_DEBUG=INFO for details) ) if the vllm server and the train.py is on the same node (? I think)
 
 ## Work in Progress
 - [Done ] Allow for custom model switching just by switching the config.yaml files

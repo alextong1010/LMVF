@@ -47,7 +47,7 @@ def cleanup_llm(llm):
 
     return None
 
-def main(config: dict, model_config: dict, verifier_model_config: dict, strict_verifier_model_config: dict, args: dict, verifier_args: dict, strict_verifier_args: dict, task_id: int, num_tasks: int, verbose: bool):
+def main(config: dict, model_config: dict, verifier_model_config: dict, strict_verifier_model_config: dict, args: dict, args_2: dict, verifier_args: dict, strict_verifier_args: dict, task_id: int, num_tasks: int, verbose: bool):
     start_time = datetime.now()
     print(f"Script started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}, Task {task_id}, Num Tasks {num_tasks}")
     print(f"Using model: {config['model']}, verifier model: {config.get('verifier_model')}, strict verifier model: {config.get('strict_verifier_model')}")
@@ -102,6 +102,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
     print(f"Output directory: {output_dirpath}")
     os.makedirs(output_dirpath, exist_ok=True)
 
+    # for gen_num in range(1, config['num_generators'] + 1):
     # --- Stage 1: Generate Solutions ---
     print("Stage 1: Generating Solutions...")    
     llm = LLM(**args)
@@ -111,19 +112,31 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
     dataset = list(load_eval_dataset(config, task_id, num_tasks))
     total_eval = len(dataset)
     
+    print(f"Generating solutions for {total_eval} problems...")
+    for i in trange(0, total_eval, config['batch_size'], desc=f"Generating Task {task_id}"):
+        batch = dataset[i:i + config['batch_size']]
+        data_with_generated_solutions = generate_solutions(config, model_config, batch, llm, sampling_params)
+        with open(f"{output_dirpath}/gen_1_task_{task_id}_eval_{i}-{i+config['batch_size']}.json", "w") as f:
+            json.dump(data_with_generated_solutions, f)
+    
+    llm = cleanup_llm(llm)
 
-    expected_files = [f"{output_dirpath}/task_{task_id}_eval_{i}-{i+config['batch_size']}.json" for i in range(0, total_eval, config['batch_size'])]
-    all_files_exist = all(os.path.exists(f) for f in expected_files)
+    print("Part 2 Generating Solutions")
+    llm = LLM(**args_2)
+    sampling_params = llm.get_default_sampling_params()
+    sampling_params.max_tokens = model_config.get('model', {}).get('max_new_tokens')
+    sampling_params.n = config['num_generations']
+    dataset = list(load_eval_dataset(config, task_id, num_tasks))
+    total_eval = len(dataset)
+    
+    print(f"Generating solutions for {total_eval} problems...")
+    for i in trange(0, total_eval, config['batch_size'], desc=f"Generating Task {task_id}"):
+        batch = dataset[i:i + config['batch_size']]
+        data_with_generated_solutions = generate_solutions(config, model_config, batch, llm, sampling_params, gen_num=2)
+        with open(f"{output_dirpath}/gen_2_task_{task_id}_eval_{i}-{i+config['batch_size']}.json", "w") as f:
+            json.dump(data_with_generated_solutions, f)
 
-    if all_files_exist:
-        print("Solution files already exist, skipping generation.")
-    else:
-        print(f"Generating solutions for {total_eval} problems...")
-        for i in trange(0, total_eval, config['batch_size'], desc=f"Generating Task {task_id}"):
-            batch = dataset[i:i + config['batch_size']]
-            data_with_generated_solutions = generate_solutions(config, model_config, batch, llm, sampling_params)
-            with open(f"{output_dirpath}/task_{task_id}_eval_{i}-{i+config['batch_size']}.json", "w") as f:
-                json.dump(data_with_generated_solutions, f)
+    breakpoint()
     
     # Check if verifier_llm is the same as llm
     verifier_llm = None
@@ -140,7 +153,7 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
         verifier_sampling_params.n = 1
 
         print("\nStage 2: Initial Verification...")
-        json_files = [f for f in os.listdir(output_dirpath) if f.startswith(f"task_{task_id}") and f.endswith(".json")]
+        json_files = [f for f in os.listdir(output_dirpath) if f.startswith(f"gen_1_task_{task_id}") and f.endswith(".json")]
         for file in trange(len(json_files), desc=f"Initial Verification Task {task_id}"):
             filepath = os.path.join(output_dirpath, json_files[file])
             with open(filepath, 'r') as f:
@@ -198,49 +211,6 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
 
         strict_verifier_llm = cleanup_llm(strict_verifier_llm)
         print("Stage 3 Complete.")
-
-    if needs_borda:
-        if verifier_args == args:
-            verifier_llm = llm
-            print("Using the same LLM for both generation and initial verification (borda).")
-        else:
-            llm = cleanup_llm(llm)
-            print("Loading Verifier LLM...")
-            verifier_llm = LLM(**verifier_args)
-        verifier_sampling_params = verifier_llm.get_default_sampling_params()
-        verifier_sampling_params.max_tokens = verifier_model_config.get('model', {}).get('max_new_tokens')
-        verifier_sampling_params.n = 1
-        correct_counts = defaultdict(int)
-        print("\nStage 2: Initial Verification...")
-        json_files = [f for f in os.listdir(output_dirpath) if f.startswith(f"task_{task_id}") and f.endswith(".json")]
-        for file in trange(len(json_files), desc=f"Initial Verification Task {task_id}"):
-            filepath = os.path.join(output_dirpath, json_files[file])
-            with open(filepath, 'r') as f:
-                batch_data = json.load(f)
-            
-            if batch_data and 'verifier_responses' in batch_data[0]:
-                print(f"Skipping initial verification for {json_files[file]}, already found 'verifier_responses'.")
-                continue
-
-            updated_batch_data = run_initial_verification_batch(
-                config, verifier_model_config, batch_data, verifier_llm, verifier_sampling_params, borda=True
-            )
-
-            results = run_borda_evaluation_batch(
-                config, verifier_model_config, updated_batch_data, verifier_llm, verifier_sampling_params
-            )
-            # with open(filepath, 'w') as f:
-            #     json.dump(updated_batch_data, f)
-
-            with open(filepath, 'w') as f:
-                json.dump(results['updated_batch_data'], f)
-
-            correct_counts["borda"] += results['correct_count']
-        
-        verifier_llm = cleanup_llm(verifier_llm)
-        print("Stage 2 (Borda) Complete.")
-            
-
 
     if needs_pass_at_n:
         print("\nStage 4: Pass@N Evaluation...")
@@ -323,6 +293,8 @@ if __name__ == "__main__":
     args = parse_vllm_args(model_path, remaining_vllm_args) # Pass remaining args
     print("Generator arguments parsed.")
 
+    args_2 = parse_vllm_args("microsoft/Phi-3-mini-4k-instruct", remaining_vllm_args)
+
     verifier_args = None
     if verifier_model_path:
         print("Parsing verifier arguments...")
@@ -343,7 +315,7 @@ if __name__ == "__main__":
         print(f"Generator Args: {args}")
         print(f"Verifier Args: {verifier_args}")
         print(f"Strict Verifier Args: {strict_verifier_args}")
-    main(config, model_config, verifier_model_config, strict_verifier_model_config, args, verifier_args, strict_verifier_args, task_id, num_tasks, verbose)
+    main(config, model_config, verifier_model_config, strict_verifier_model_config, args, args_2, verifier_args, strict_verifier_args, task_id, num_tasks, verbose)
 
 
     

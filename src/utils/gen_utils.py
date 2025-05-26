@@ -11,7 +11,8 @@ def generate_solutions(
     model_config: dict,
     data: dict | list[dict], 
     model: LLM,
-    sampling_params: dict
+    sampling_params: dict,
+    gen_num: int = 1
 ) -> dict | list[dict]:
     """
     Generate multiple solutions for one or multiple problems.
@@ -22,6 +23,7 @@ def generate_solutions(
         data: A single data dictionary or a list of data dictionaries
         model: The model to use for generation
         sampling_params: Sampling parameters
+        gen_num: Generator Number
     Returns:
         If data is a dict: the input dict with a new "solutions" key containing generated solutions
         If data is a list: the input list of dicts, each with a new "solutions" key
@@ -45,20 +47,24 @@ def generate_solutions(
 
     # Assign solutions during grouping
     for i, d in enumerate(data):
-        d['gt_answer'] = extract_answer(d['solution'], config['dataset'])
-        if model_config.get("model", {}).get("reasoning"):
-            d['generated_solutions'] = []
-            for j in range(sampling_params.n):
-                try:
-                    # Try to split using </think> token
-                    solution = (outputs[i].outputs[j].text).split("</think>")[1].split("<end_of_turn>")[0]
-                except IndexError:
-                    # Default to splitting using <end_of_turn> if </think> is not found
-                    solution = (outputs[i].outputs[j].text).split("<end_of_turn>")[0]
-                d['generated_solutions'].append(solution)
-        else:
-            d['generated_solutions'] = [(outputs[i].outputs[j].text).split("<end_of_turn>")[0] for j in range(sampling_params.n)]
-        d['generated_answers'] = [extract_answer(solution, config['dataset']) for solution in d['generated_solutions']]
+        # check if gt_answer is already present
+        if 'gt_answer' not in d:
+            d['gt_answer'] = extract_answer(d['solution'], config['dataset'])
+        if f'generated_solutions_{gen_num}' not in d:
+            if model_config.get("model", {}).get("reasoning"):
+                d[f'generated_solutions_{gen_num}'] = []
+                for j in range(sampling_params.n):
+                    try:
+                        # Try to split using </think> token
+                        solution = (outputs[i].outputs[j].text).split("</think>")[1].split("<end_of_turn>")[0]
+                    except IndexError:
+                        # Default to splitting using <end_of_turn> if </think> is not found
+                        solution = (outputs[i].outputs[j].text).split("<end_of_turn>")[0]
+                    d[f'generated_solutions_{gen_num}'].append(solution)
+            else:
+                d[f'generated_solutions_{gen_num}'] = [(outputs[i].outputs[j].text).split("<end_of_turn>")[0] for j in range(sampling_params.n)]
+        if f'generated_answers_{gen_num}' not in d:
+            d[f'generated_answers_{gen_num}'] = [extract_answer(solution, config['dataset']) for solution in d[f'generated_solutions_{gen_num}']]
     return data if is_batch else data[0]
 
 
@@ -85,28 +91,35 @@ def extract_answer(solution: str, dataset_name: str, err_msg: Optional[str] = No
 
     return answer
 
-def make_to_chat_prompt(config):
+def check_prompt_version(config):
+    v1_models = []  # Replace with actual model names for v1
+    v2_models = ["Qwen2.5-0.5B-Instruct"]  # Replace with actual model names for v2
+
+    if config['model'] in v1_models:
+        return 1
+    elif config['model'] in v2_models:
+        return 2
+    else:
+        raise ValueError(f"Unsupported model: {config['model']}")
+    
+
+def make_to_chat_prompt(config, version: int):
+    # Define lists of models for each prompt version
+
     def to_chat_prompt_v1(problem):
         return {
-            # "prompt": [{"role": "user", "content":  get_gen_prompt(config['dataset'], problem['problem'])}]
             "prompt": [{"role": "user", "content":  [{"type": "text", "text": get_gen_prompt(config['dataset'], problem['problem'])}]}]
         }
     
     def to_chat_prompt_v2(problem):
         return {
             "prompt": [{"role": "user", "content":  get_gen_prompt(config['dataset'], problem['problem'])}]
-
-            # "prompt": [{"role": "user", "content":  get_gen_prompt(config['dataset'], problem['problem'])}]
-        }
-    def to_chat_prompt_v3(problem):
-        return {            
-            "prompt": get_gen_prompt(config['dataset'], problem['problem'])
         }
 
-    if config['model'] == "Qwen2.5-0.5B-Instruct":
-        print("Model is Qwen2.5-0.5B-Instruct, using v2 prompt")
-        return to_chat_prompt_v3
-        # return to_chat_prompt_v1
+    # Determine which prompt version to use based on the model
+    if version == 2:
+        print("Using v2 prompt")
+        return to_chat_prompt_v2
     else:
-        print("Model is not Qwen2.5-0.5B-Instruct, using v1 prompt")
+        print("Using v1 prompt")
         return to_chat_prompt_v1

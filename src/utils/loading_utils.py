@@ -57,9 +57,13 @@ def load_and_validate_config(config_args, repo_root):
     if not os.path.exists(model_config_path):
         raise FileNotFoundError(f"Model config file not found: {model_config_path}")
     model_config = load_config(model_config_path)
-    model_path = model_config.get("model", {}).get("path")
-    if not model_path:
-        raise ValueError(f"Model path not found in {model_config_path}")
+    if config.get("custom_model_path"):
+        model_path = config.get("custom_model_path")
+        print(f"Using custom model path: {model_path} instead of {model_config.get('model', {}).get('path')}")
+    else:
+        model_path = model_config.get("model", {}).get("path")
+        if not model_path:
+            raise ValueError(f"Model path not found in {model_config_path}")
     
     verifier_model_name = config.get("verifier_model")
     if verifier_model_name:
