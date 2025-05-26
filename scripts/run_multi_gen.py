@@ -8,7 +8,7 @@ from vllm import LLM
 from src.utils.loading_utils import load_and_validate_config, parse_vllm_args, parse_initial_arguments
 from src.utils.dataset_utils import load_eval_dataset
 from src.utils.gen_utils import generate_solutions
-from src.utils.eval_utils import run_initial_verification_batch, run_strict_verification_and_evaluate_batch, evaluate_problem_pass_at_n, run_borda_evaluation_batch
+from src.utils.eval_utils import run_initial_verification_batch, run_strict_verification_and_evaluate_batch, evaluate_problem_pass_at_n
 from tqdm import trange
 from datetime import datetime
 from collections import defaultdict
@@ -81,16 +81,11 @@ def main(config: dict, model_config: dict, verifier_model_config: dict, strict_v
 
     needs_bon_mav = "bon-mav" in eval_modes
     needs_pass_at_n = any(mode.startswith("pass@") for mode in eval_modes)
-    needs_borda = "borda" in eval_modes
 
     if needs_bon_mav:
         verifier_str = config.get("verifier_model", "None")
         strict_verifier_str = config.get("strict_verifier_model", "None")
         eval_modes_str += f"_verifier_{verifier_str}_strict_{strict_verifier_str}"
-
-    if needs_borda:
-        verifier_str = config.get("verifier_model", "None")
-        eval_modes_str += f"_verifier_{verifier_str}"
 
     slurm_job_id = os.environ.get("SLURM_JOB_ID")
     if slurm_job_id:
