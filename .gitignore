@@ -1,9 +1,7 @@
-*.egg-info/*
-*.egg/*
-*.pyc
-*_cache/*
-*__pycache__/*
-.idea/*
+__pycache__/
+*.py[cod]
+*$py.class
 *.out
 *.err
 *.log
+archive/

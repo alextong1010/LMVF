@@ -4,9 +4,10 @@ model:
   path: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
   tensor_parallel_size: 1 # TODO: test
   dtype: bfloat16
+  chat_template: text_only
   reasoning: true
   reasoning_parser: deepseek_r1
-  max_new_tokens: 1024 # 32768
+  max_new_tokens: 2048 # 32768
   temperature: 0.6
   top_p: 0.95
   top_k: null

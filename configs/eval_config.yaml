@@ -1,34 +1,126 @@
-# Default configuration for LMVF evaluation
+# Base configuration - shared across all evaluations
+base_config:
+  models:
+    - "Qwen2.5-0.5B-Instruct"
+    - "Qwen2.5-1.5B-Instruct" 
+    - "Qwen2.5-3B-Instruct"
+    # - "Qwen2.5-7B-Instruct"
+    # - "Phi-3-mini-128k-instruct"
+    # - "Qwen2.5-0.5B-Instruct"
+    # - "gemma-3-1b-it"
 
-# Model settings
-# model: "deepseek-r1-distill-qwen-1.5b"  # Main model for generation
-model: "Qwen2.5-0.5B-Instruct" # "gemma-3-1b-it" #"Qwen2.5-0.5B-Instruct"
-# verifier_model: "Qwen2.5-0.5B-Instruct"
-# strict_verifier_model: "Qwen2.5-0.5B-Instruct"
+  verifier_model: "deepseek-r1-distill-qwen-1.5b"
 
-# verifier_model: null    # Optional separate model for verification (uses main model if null)
-verifier_model: "deepseek-r1-distill-qwen-1.5b" # "gemma-3-1b-it" # "deepseek-r1-distill-qwen-1.5b"
-strict_verifier_model: "Qwen2.5-3B-Instruct"
+  strict_verifier_model: "Qwen2.5-3B-Instruct"
 
-# Other settings
-seed: 42
-gpus_per_node: 1
-num_nodes: 2
+  recomb_model: "Qwen2.5-0.5B-Instruct"
+  
+  solutions_dir: "/n/netscratch/ydu_lab/Lab/alex/LMVF/math_500/gen"
+  solutions_file_name: "task_{task_id}_solutions_trial_4_with_solution_in_prompt.json"
+  # solutions_file_name: "task_{task_id}_solutions.json"
 
-# Dataset settings
-dataset: "math"
+  dataset: "math_500"
+  seed: 42
+  gpus_per_node: 1 # Ignored if running straight from the python script
+  num_nodes: 2 # Ignored if running straight from the python script
+  batch_size: 32
+  output_base_path: "/n/netscratch/ydu_lab/Lab/alex/LMVF"
+  verbose: false
 
-# Generation settings
-num_generations: 4
-batch_size: 64
-verifier_batch_size: 16
+# Evaluation scenarios to run consecutively
+eval_scenarios:
+  - name: "individual_pass@1"
+    description: "Pass@1 for each model individually"
+    eval_mode: "pass@1"
+    mode: "individual"
+    model_subset: "all"
+    generations_per_model: 1
 
-# Evaluation settings
-eval_mode: 
-    - "pass@1"
-    - "pass@4"
-    - "bon-mav"
-verbose: false
+  - name: "individual_pass@2"
+    description: "Pass@2 for each model individually"
+    eval_mode: "pass@2"
+    mode: "individual"
+    model_subset: "all"
+    generations_per_model: 2
+    
+  - name: "individual_pass@4"
+    description: "Pass@4 for each model individually"
+    eval_mode: "pass@4"
+    mode: "individual"
+    model_subset: "all"
+    generations_per_model: 4
 
-# Output settings
-output_base_path: "/n/netscratch/hankyang_lab/Lab/alex/LMVF"
+  # - name: "individual_bon_mav"
+  #   description: "BoN-Mav for each model individually"
+  #   eval_mode: "bon-mav"
+  #   mode: "individual"
+  #   # model_subset: "all"
+  #   model_subset:
+  #     - "Qwen2.5-0.5B-Instruct"
+  #   verifier_model: "deepseek-r1-distill-qwen-1.5b"
+  #   strict_verifier_model: "Qwen2.5-3B-Instruct"
+  #   generations_per_model: 4
+    
+  - name: "mixed_qwen_group"
+    description: "Pass@2 mixed for Qwen models subset"
+    eval_mode: "pass@2"
+    mode: "mixed"
+    model_subset:
+      - "Qwen2.5-0.5B-Instruct"
+      - "Qwen2.5-1.5B-Instruct"
+    generations_per_model: 1
+
+  # - name: "mixed_qwen_group"
+  #   description: "Pass@3 mixed for Qwen models subset"
+  #   eval_mode: "pass@3"
+  #   mode: "mixed"
+  #   model_subset:
+  #     - "Qwen2.5-0.5B-Instruct"
+  #     - "Qwen2.5-1.5B-Instruct"
+  #     - "Qwen2.5-3B-Instruct"
+  #   generations_per_model: 1
+
+  # - name: "mixed_group"
+  #   description: "Pass@2 mixed for larger models"
+  #   eval_mode: "pass@2"
+  #   mode: "mixed"
+  #   model_subset:
+  #     - "Qwen2.5-7B-Instruct"
+  #     - "Qwen2.5-3B-Instruct"
+  #   generations_per_model: 1
+  
+    
+  # - name: "mixed_large_group"
+  #   description: "Pass@4 mixed for larger models"
+  #   eval_mode: "pass@4"
+  #   mode: "mixed"
+  #   model_subset:
+  #     - "Qwen2.5-0.5B-Instruct"
+  #     - "Qwen2.5-1.5B-Instruct" 
+  #     - "Qwen2.5-3B-Instruct"
+  #     - "Phi-3-mini-128k-instruct"
+  #   generations_per_model: 1
+  
+  # - name: "bon_mav_mixed_all_models"
+  #   description: "BoN-Mav mixed for all models"
+  #   eval_mode: "bon-mav"
+  #   mode: "mixed"
+  #   model_subset: "all"
+  #   verifier_model: "deepseek-r1-distill-qwen-1.5b"
+  #   strict_verifier_model: "Qwen2.5-3B-Instruct"
+  #   generations_per_model: 1
+
+  # - name: "mg_bon_mav_all_models"
+  #   description: "Multi-Generator-BoN-Mav for all models"
+  #   eval_mode: "mg-bon-mav"
+  #   mode: "mixed"
+  #   model_subset: "all"
+  #   verifier_model: "deepseek-r1-distill-qwen-1.5b"
+  #   strict_verifier_model: "Qwen2.5-3B-Instruct"
+  #   recomb_model: "Qwen2.5-0.5B-Instruct"
+  #   generations_per_model: 1
+
+# Output organization
+output_structure:
+  naming_convention: "{scenario_name}_{timestamp}"
+  aggregate_results: true

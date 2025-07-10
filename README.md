@@ -1,5 +1,5 @@
 # LMVF
-Learning with Multi-Agent Verifier Feedback
+Learning with Multi-agent Verifier Feedback
 
 Alex Tong, Yilun Du
 
@@ -11,50 +11,10 @@ We recommend using a conda environment with Python 3.10.
 1. conda create -n lmvf python=3.10 
 2. pip install trl
 3. pip install trl[vllm]
-4. pip install vllm==0.8.1
-5. pip instal 
+4. pip install vllm==0.8.1 (currently on '0.8.5.post1')
+5. pip install tokenizer==0.21.0 (will say its incompatible, but this is what is needed to get gemma3 working on 0.8.5.post1)
 5. conda install -c conda-forge yq
 6. conda install -c conda-forge jq
 
-
-Common Errors
-1. ImportError: libnccl.so.2: cannot open shared object file: No such file or directory
-Try: conda install -c nvidia nccl
-2. Not sure why, but vllm 0.8.3 and vllm 0.8.4 triples the generation time and 10x the verification time of when using vllm 0.8.1
-3. Gemma 3 doesnt work with vllm 0.8.5 post 1, which is what trl[vllm] installs.
-
-
-To Run:
-python run_eval.py --config-path configs/eval_config.yaml (1 GPU)
-
-or 
-
-./slurm_eval.sh (For data parallelism)
-
-To Run (Train):
-python train.py --config-path configs/train_config.yaml
-
-To confirm/do:
-1. Change grpo_config max_prompt_length to None
-2. Change grpo_config max_completion_length to max_new_tokens from model_config
-(Done) 3. Change grpo_config temperature, top_k, top_p, min_p for each model
-4. Modify grpo_config based on the model configs files (temp, top p, top k, min p)
-5. Check verifier_args and strict_verifier_args, what are they? And do any args need to be changed?
-6. Check if models other than qwen2.5 0.5b instruct need to use to_chat_prompt_v3
-7. Debug for slurm, i.e. what is the slurm training script looking like with vllm colocate?
-8. Remove colocate and use servers instead
-
-Note:
-In general, only instruction-tuned models have a chat template. Base models may perform poorly as they are not trained to respond to the chat conversation.
-
-## Work in Progress
-- [Done ] Allow for custom model switching just by switching the config.yaml files
-- [ Done] Test out dynamic gpu allocation given modifiable yaml configs
-- [ Done, just test it] Add support for tensor_parallel_size > 1, especially with regards to CUDA_VISIBLE_DEVICES
-- [ Done ] Run evals 
-- [ Done ] create separate vllm node and just add api calls to the node as the verifier function.
-- [ Done] Test num gen = 4, test eager implementation, test calling vllm server
-- [ ] CHange the run_eval.py to eval.py after code finishes running
-- [ ] Implement multi-agent training loop
-- [ ] Expand documentation and usage examples
-
+Note: 0.8.5.post1 is recommended for every model except gemma3. If you want to use gemma3 on 0.8.5.post1, you need to downgrade tokenizer to 0.21.0. Otherwise, just ignore gemma3. Even with this, gemma3 has slow throughput. 
+if you want faster gemma3 throughput at the cost of slower throughputs in other models, use vllm == 0.8.1.

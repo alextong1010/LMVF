@@ -4,6 +4,7 @@ model:
   path: google/gemma-3-1b-it
   tensor_parallel_size: 1
   dtype: bfloat16
+  chat_template: text_and_image
   reasoning: false
   max_new_tokens: 2048
   temperature: 1.0

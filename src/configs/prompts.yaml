@@ -1,0 +1,94 @@
+# Prompt Config
+
+generator:
+  # Generation templates for different datasets
+  templates:
+    math_500:
+      prompt: |
+        You are a helpful assistant skilled in math problem-solving. 
+        Always end your solution with the final numerical answer in latex, using '\boxed{{<answer>}}'. 
+        If there is no solution, reply using '\boxed{{}}'.
+        
+        Please solve the following math problem step by step:
+        
+        QUESTION: {problem}
+        
+        Provide your detailed solution below:
+    
+    # Placeholder for additional dataset templates
+
+verifier:
+  # Verification settings
+  answer_symbol: "FINAL VERIFICATION ANSWER:"
+  ask_for_approval_only: "To clarify, based on the above analysis, reply with ONLY '{answer_symbol} True' or ONLY '{answer_symbol} False'. Do not include any other text in your response."
+  
+  system_str_math: |
+    You are a critical verifier tasked with evaluating mathematical problem-solving.
+    You will be presented with a question and a proposed solution.
+    Your job is to carefully go over and analyze the solution. Follow the instructions.
+
+    QUESTION: {problem}
+
+    PROPOSED SOLUTION: {solution}
+
+    INSTRUCTIONS: 
+
+  # Verification strategies
+  strategies:
+    math_steps:
+      prompt: |
+        Go over each step in the proposed solution and check whether it is mathematically correct. Think out loud. 
+        If you reach a step that is incorrect, stop and reply '{answer_symbol} False'.
+        If you get to the end of all the steps and each step was correct, reply '{answer_symbol} True'.
+    
+    units_steps:
+      prompt: |
+        Check if the units are handled correctly in each step of the solution. Think out loud. 
+        If you find any issues with the units, stop and reply '{answer_symbol} False'. 
+        If all units are handled correctly, reply '{answer_symbol} True'.
+    
+    general_summarize:
+      prompt: |
+        Summarize the solution in your own words, explore anything you think may be incorrect. Think out loud. 
+        If you find something that's incorrect, stop and reply '{answer_symbol} False'. 
+        If you've gone over the solution and everything seems correct, reply '{answer_symbol} True'.
+    
+    general_edge:
+      prompt: |
+        Check if the solution handles edge cases and boundary conditions, test extreme values or special cases. Think out loud. 
+        If any boundary conditions or edge cases fail, stop and reply '{answer_symbol} False'. 
+        If all boundary conditions and edge cases are handled correctly, reply '{answer_symbol} True'.
+    
+    general_mistakes:
+      prompt: |
+        Check if the solution has any common mistakes, calculation errors, or misconceptions that typically found in this type of problem. Think out loud. 
+        If you find any common mistakes, stop and reply '{answer_symbol} False'. 
+        If no common mistakes are found, reply '{answer_symbol} True'.
+    
+    general_domain:
+      prompt: |
+        Check if the solution correctly applies relevant domain-knowledge, established theories, and standard practices for this type of problem. Think out loud. 
+        If any domain knowledge is misapplied or violated, stop and reply '{answer_symbol} False'. 
+        If all domain-specific knowledge is correctly applied, reply '{answer_symbol} True'.
+
+    # Placeholder for additional dataset templates
+
+
+recombination:
+  # Placeholder strategies
+  strategies:
+    merge_solutions:
+      prompt: |
+        You are an expert skilled in mathematical problem-solving.
+        You will be given a problem statement and multiple proposed candidate solutions.
+        Each solution includes feedback from a set of verifiers, marked as passed or failed.
+        Your task is to identify and merge the correct elements from the candidate solutions, resolve any inconsistencies, and construct one final, coherent solution.
+        The final answer must be mathematically sound and satisfy all verifiers.
+
+        QUESTION: {problem}
+
+        VERIFIER LEGEND: {vera_legend}
+
+        PROPOSED SOLUTIONS: {proposed_solutions}
+  
+    # Placeholder for additional dataset templates

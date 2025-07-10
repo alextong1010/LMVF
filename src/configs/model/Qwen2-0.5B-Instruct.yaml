@@ -1,7 +1,7 @@
 model:
-  name: Qwen2.5-3B-Instruct
+  name: Qwen2-0.5B-Instruct
   type: Qwen
-  path: Qwen/Qwen2.5-3B-Instruct
+  path: Qwen/Qwen2-0.5B-Instruct
   tensor_parallel_size: 1
   dtype: bfloat16
   chat_template: text_only
@@ -11,4 +11,3 @@ model:
   top_p: 0.8
   top_k: 20
   min_p: 0.0
-

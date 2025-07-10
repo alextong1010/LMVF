@@ -1,0 +1,11 @@
+model:
+  name: Phi-3-mini-128k-instruct
+  type: Phi-3
+  path: microsoft/Phi-3-mini-128k-instruct
+  tensor_parallel_size: 1
+  dtype: bfloat16
+  chat_template: text_only
+  reasoning: false
+  max_new_tokens: 2048
+  temperature: 0.0
+
