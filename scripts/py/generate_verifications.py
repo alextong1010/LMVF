@@ -5,49 +5,46 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 import argparse
 import yaml
-from src.utils.generation_runner import GenerationRunner
+from src.utils.verifier_runner import VerifierRunner
 from src.utils.dataset_manager import DatasetManager
 import torch.distributed as dist
 
 from datetime import datetime
 from termcolor import colored
-import random
 
 
 def main(repo_root, args):
     # Log start time
     start_time = datetime.now()
-    print(colored(f"Solution Generation started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}, Task {args.task_id}, Num Tasks {args.num_tasks}", "white", attrs=["bold"]))
-
-    # Create a random 8 digit seed
-    gen_seed = random.randint(0, 100000000)
-    print(colored(f"Random generation seed: {gen_seed}", "white", attrs=["bold"]))
+    print(colored(f"Verification of solutions started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}, Task {args.task_id}, Num Tasks {args.num_tasks}", "white", attrs=["bold"]))
 
     # Load generation config from args
     config_path = os.path.join(repo_root, args.config_path)
+    print(colored(f"Loading config from {config_path}", "yellow", attrs=["bold"]))
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
             
-    output_dirpath = config['base_config']['output_base_path'] + "/" + config['base_config']['dataset'] + "/gen/" + str(gen_seed)
+    output_dirpath = f"{config['base_config']['output_base_path']}/{config['base_config']['dataset']}/gen/{config['base_config']['gen_seed']}"
     print(colored(f"Output directory: {output_dirpath}", "yellow", attrs=["bold"]))
     os.makedirs(output_dirpath, exist_ok=True)
 
     # Initialize dataset loader
     dataset_manager = DatasetManager(config, args.task_id, args.num_tasks)
-    dataset_manager.load_dataset("test")
-    dataset_manager.extract_ground_truth()
+    dataset_manager.load_dataset("test", filepath=f"{output_dirpath}/{config['base_config']['solutions_file_name'].format(task_id=args.task_id)}")
     
-    # Initialize generator
-    generator = GenerationRunner(config, output_dirpath)
-    print(colored(f"Using model(s) for generation: {generator.gen_models}", "yellow"))
+    # Initialize verifier
+    verifier = VerifierRunner(config, dataset_manager, output_dirpath)
+    print(colored(f"Using model(s) for verification: {verifier.ver_models}", "yellow"))
     
     try:
-        generator.generate_solutions(dataset_manager)
-        generator.save_solutions()
+        verifier.generate_init_verifications()
+        verifier.generate_strict_verifications()
+        verifier.save_verifications()
     finally:
         if dist.is_initialized():
             try:
                 dist.destroy_process_group()
+                print(colored("NCCL process group destroyed successfully", "green"))
             except Exception as e:
                 print(colored(f"Warning: Failed to destroy process group: {e}", "yellow"))
     
@@ -58,7 +55,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config-path",
-        default="configs/gen_config.yaml",
+        default="configs/verify_config.yaml",
         type=str,
         help="Config Path",
     )

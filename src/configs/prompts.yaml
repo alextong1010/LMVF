@@ -36,36 +36,42 @@ verifier:
   # Verification strategies
   strategies:
     math_steps:
+      description: "Checks if each step in the solution is mathematically correct."
       prompt: |
         Go over each step in the proposed solution and check whether it is mathematically correct. Think out loud. 
         If you reach a step that is incorrect, stop and reply '{answer_symbol} False'.
         If you get to the end of all the steps and each step was correct, reply '{answer_symbol} True'.
     
     units_steps:
+      description: "Checks if the units are handled correctly in each step of the solution."
       prompt: |
         Check if the units are handled correctly in each step of the solution. Think out loud. 
         If you find any issues with the units, stop and reply '{answer_symbol} False'. 
         If all units are handled correctly, reply '{answer_symbol} True'.
     
     general_summarize:
+      description: "Summarizes the solution and explores anything that may be incorrect."
       prompt: |
         Summarize the solution in your own words, explore anything you think may be incorrect. Think out loud. 
         If you find something that's incorrect, stop and reply '{answer_symbol} False'. 
         If you've gone over the solution and everything seems correct, reply '{answer_symbol} True'.
     
     general_edge:
+      description: "Checks if the solution handles edge cases and boundary conditions, tests extreme values or special cases."
       prompt: |
         Check if the solution handles edge cases and boundary conditions, test extreme values or special cases. Think out loud. 
         If any boundary conditions or edge cases fail, stop and reply '{answer_symbol} False'. 
         If all boundary conditions and edge cases are handled correctly, reply '{answer_symbol} True'.
     
     general_mistakes:
+      description: "Checks if the solution has any common mistakes, calculation errors, or misconceptions that typically found in this type of problem."
       prompt: |
         Check if the solution has any common mistakes, calculation errors, or misconceptions that typically found in this type of problem. Think out loud. 
         If you find any common mistakes, stop and reply '{answer_symbol} False'. 
         If no common mistakes are found, reply '{answer_symbol} True'.
     
     general_domain:
+      description: "Checks if the solution correctly applies relevant domain-knowledge, established theories, and standard practices for this type of problem."
       prompt: |
         Check if the solution correctly applies relevant domain-knowledge, established theories, and standard practices for this type of problem. Think out loud. 
         If any domain knowledge is misapplied or violated, stop and reply '{answer_symbol} False'. 
@@ -79,16 +85,11 @@ recombination:
   strategies:
     merge_solutions:
       prompt: |
-        You are an expert skilled in mathematical problem-solving.
-        You will be given a problem statement and multiple proposed candidate solutions.
-        Each solution includes feedback from a set of verifiers, marked as passed or failed.
-        Your task is to identify and merge the correct elements from the candidate solutions, resolve any inconsistencies, and construct one final, coherent solution.
-        The final answer must be mathematically sound and satisfy all verifiers.
-
-        QUESTION: {problem}
+        You are an expert mathematician.
+        These are some other possible solutions and verifier feedback to the problem: {solutions}.
+        Using the solutions and feedback as additional information, solve the original problem step by step again. Think out loud.
+        Your final answer should be in the form \boxed{{answer}}.
+        
+        Problem: {problem}
 
         VERIFIER LEGEND: {vera_legend}
-
-        PROPOSED SOLUTIONS: {proposed_solutions}
-  
-    # Placeholder for additional dataset templates

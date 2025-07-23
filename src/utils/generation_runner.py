@@ -2,13 +2,21 @@ from src.utils.model import ModelRunner
 from tqdm import trange
 from src.utils.dataset_manager import DatasetManager
 from src.utils.util import extract_answer
+import os
+import yaml
 
 class GenerationRunner(ModelRunner):
-    def __init__(self, config: dict):
-        super().__init__(config)
+    def __init__(self, config: dict, output_dirpath: str):
+        super().__init__(config, output_dirpath)
         self.templates = self.prompt_config['generator']['templates']
         self.batch_size = self.config['base_config']['batch_size']
         self.num_generations = self.config['base_config']['num_generations']
+        self.solutions_file_name = self.config['base_config']['solutions_file_name']
+
+    def save_solutions(self):
+        with open(os.path.join(self.output_dirpath, 'gen_config.yaml'), 'w') as f:
+            yaml.dump(self.config, f)
+        self.mav.datasetManager.save_dataset(os.path.join(self.output_dirpath, self.solutions_file_name.format(task_id=self.mav.datasetManager.task_id)))
 
     def generate_solutions(self, datasetManager: DatasetManager):
         for model_name in self.gen_models:

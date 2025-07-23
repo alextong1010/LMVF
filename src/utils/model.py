@@ -12,15 +12,15 @@ class ModelRunner(ABC):
     """
     Base class for generators, verifiers, and recombinators.
     """
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, output_dirpath: str):
         self.config = config
         self.gen_models = self.config['base_config']['models']
         if isinstance(self.gen_models, str):
             self.gen_models = [self.gen_models]
         self._load_prompt_config()
         self._load_all_model_configs()
-        self.output_base_path = self.config['base_config']['output_base_path']
         self.dataset = self.config['base_config']['dataset']
+        self.output_dirpath = output_dirpath
 
     def _to_chat_prompt(self, chat_template: str, prompt: str, assistant: bool = False):
         # Image currently not supported

@@ -9,9 +9,18 @@ base_config:
     - "Qwen2.5-0.5B-Instruct" # trial 1
     - "Qwen2.5-1.5B-Instruct" # trial 1
     - "Qwen2.5-3B-Instruct" # trial 1
-    # - "Qwen2.5-7B-Instruct" # trial 1
-    - "Qwen2-0.5B-Instruct" # trial 1
-    # - "Qwen2-1.5B-Instruct" # trial 1
+    - "Qwen2-0.5B-Instruct" # trial 2
+
+  verifier_models:
+    # - "Qwen2.5-3B-Instruct"
+    # - "deepseek-r1-distill-qwen-1.5b"
+    - "Qwen2.5-0.5B-Instruct"
+    - "Qwen2.5-1.5B-Instruct"
+
+  strict_verifier_models:
+    - "Qwen2.5-3B-Instruct"
+    - "Qwen2.5-0.5B-Instruct"
+    - "Qwen2.5-1.5B-Instruct"
 
   seed: 42
   gpus_per_node: 1 # Ignored if running straight from the python script
@@ -19,8 +28,9 @@ base_config:
 
   dataset: "math_500"
 
-  num_generations: 4
+  num_generations: 8
   batch_size: 64
   output_base_path: "/n/netscratch/ydu_lab/Lab/alex/LMVF"
-  solutions_file_name: "task_{task_id}_solution_pass_at_n_test1.json"
+  gen_seed: 0
+  solutions_file_name: "task_{task_id}_solutions.json"
   verbose: false

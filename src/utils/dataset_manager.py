@@ -14,9 +14,7 @@ class DatasetManager:
         self.num_shards = num_shards
         self.task_id = task_id
 
-    def save_dataset(self, filepath = None):
-        if filepath is None:
-            filepath =  f"{self.config['base_config']['output_base_path']}/{self.config['base_config']['dataset']}/gen/{self.config['base_config']['output_file_name'].format(task_id=self.task_id)}"
+    def save_dataset(self, filepath: str):
         with open(filepath, "w") as f:
             json.dump(self.dataset, f)
         print(colored(f"Saved dataset to {filepath}", "yellow"))
@@ -27,9 +25,9 @@ class DatasetManager:
                 d['gt_answer'] = extract_answer(d['solution'], self.dataset_name)
         return self.dataset
 
-    def load_dataset(self, split: str, eval: bool = False):
-        if eval:
-            self.dataset = self.load_pre_generated_dataset()
+    def load_dataset(self, split: str, filepath: str = None):
+        if filepath:
+            self.dataset = self.load_pre_generated_dataset(filepath)
         elif split == "train":
             self.dataset = self.load_train_dataset(self.dataset_name)
         elif split == "test":
@@ -90,11 +88,9 @@ class DatasetManager:
         eval_dataset = eval_dataset.shard(num_shards=self.num_shards, index=self.task_id)
         return list(eval_dataset)
     
-    def load_pre_generated_dataset(self):
-        solutions_dir = self.config['base_config']['solutions_dir']
-        solutions_file_name = self.config['base_config']['solutions_file_name'].format(task_id=self.task_id)
-        solutions_path = os.path.join(solutions_dir, solutions_file_name)
-        with open(solutions_path, "r") as f:
+    def load_pre_generated_dataset(self, filepath: str):
+        print(colored(f"Loading solutions from {filepath}", "yellow"))
+        with open(filepath, "r") as f:
             dataset_list = json.load(f)
 
         # Convert list back to Dataset object to enable sharding
